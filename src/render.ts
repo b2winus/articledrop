@@ -211,3 +211,12 @@ export function nextFootnote(text: string): number {
 	while ((m = re.exec(text))) max = Math.max(max, +m[1]);
 	return max + 1;
 }
+
+/** Folder paths matching a keyword: folder-name prefix first, then name contains, then path contains; shorter first. */
+export function rankFolders(paths: string[], query: string): string[] {
+	const q = query.trim().toLowerCase();
+	const name = (p: string) => (p.split("/").pop() ?? p).toLowerCase();
+	const hits = q ? paths.filter((p) => p.toLowerCase().includes(q)) : [...paths];
+	const rank = (p: string) => (name(p).startsWith(q) ? 0 : name(p).includes(q) ? 1 : 2);
+	return hits.sort((a, b) => rank(a) - rank(b) || a.length - b.length || a.localeCompare(b));
+}

@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, SettingDefinitionItem, SettingGroupItem, normalizePath } from "obsidian";
 import type ArticledropPlugin from "./main";
 import { lang, t } from "./i18n";
+import { FolderSuggest } from "./modals";
 import { splitList } from "./render";
 import type { ArticledropSettings } from "./types";
 
@@ -51,7 +52,7 @@ export function defaultPaperTemplate(): string {
 export function defaultSettings(): ArticledropSettings {
 	const ko = lang() === "ko";
 	return {
-		folder: ko ? "아티클" : "Articles",
+		folder: ko ? "자료" : "Sources",
 		fileNameTemplate: "{{title}}",
 		contentMode: "ask",
 		citationStyle: ko ? "korean" : "chicago",
@@ -67,7 +68,6 @@ export function defaultSettings(): ArticledropSettings {
 		insertMode: "footnote",
 		bibliographyHeading: t("note.bibliography"),
 
-		paperFolder: ko ? "논문" : "Papers",
 		paperFileNameTemplate: "{{firstAuthor}} ({{year}}) {{title}}",
 		paperTemplate: defaultPaperTemplate(),
 		paperSource: "openalex",
@@ -75,7 +75,7 @@ export function defaultSettings(): ArticledropSettings {
 		openAlexKey: "",
 		kciKey: "",
 		downloadPdf: true,
-		pdfFolder: ko ? "논문/PDF" : "Papers/PDF",
+		pdfFolder: ko ? "자료/PDF" : "Sources/PDF",
 		defaultPaperTags: "paper",
 	};
 }
@@ -87,6 +87,7 @@ type Spec =
 	| { kind: "heading"; name: string }
 	| { kind: "info"; name: string; desc?: string }
 	| { kind: "text"; key: Key; name: string; desc?: string; secret?: boolean }
+	| { kind: "folder"; key: "folder" | "pdfFolder"; name: string; desc?: string }
 	| { kind: "toggle"; key: Key; name: string; desc?: string }
 	| { kind: "dropdown"; key: Key; name: string; desc?: string; options: Record<string, string> }
 	| { kind: "template"; key: "bodyTemplate" | "paperTemplate"; name: string; desc: string; rows: number; reset: () => string };
@@ -98,7 +99,7 @@ export class ArticledropSettingTab extends PluginSettingTab {
 
 	private specs(): Spec[] {
 		return [
-			{ kind: "text", key: "folder", name: t("set.folder"), desc: t("set.folderDesc") },
+			{ kind: "folder", key: "folder", name: t("set.folder"), desc: t("set.folderDesc") },
 			{ kind: "text", key: "fileNameTemplate", name: t("set.fileName"), desc: t("set.fileNameDesc") },
 			{
 				kind: "dropdown",
@@ -139,7 +140,6 @@ export class ArticledropSettingTab extends PluginSettingTab {
 
 			{ kind: "heading", name: t("set.papers") },
 			{ kind: "info", name: t("paper.hint") },
-			{ kind: "text", key: "paperFolder", name: t("set.paperFolder") },
 			{ kind: "text", key: "paperFileNameTemplate", name: t("set.paperFileName"), desc: t("set.paperFileNameDesc") },
 			{ kind: "text", key: "defaultPaperTags", name: t("set.defaultPaperTags") },
 			{
@@ -149,7 +149,7 @@ export class ArticledropSettingTab extends PluginSettingTab {
 				options: { openalex: "OpenAlex", crossref: "Crossref", arxiv: "arXiv", kci: "KCI" },
 			},
 			{ kind: "toggle", key: "downloadPdf", name: t("set.downloadPdf") },
-			{ kind: "text", key: "pdfFolder", name: t("set.pdfFolder") },
+			{ kind: "folder", key: "pdfFolder", name: t("set.pdfFolder") },
 			{ kind: "text", key: "contactEmail", name: t("set.email"), desc: t("set.emailDesc") },
 			{ kind: "text", key: "openAlexKey", name: t("set.openAlexKey"), desc: t("set.openAlexKeyDesc"), secret: true },
 			{ kind: "text", key: "kciKey", name: t("set.kciKey"), desc: t("set.kciKeyDesc"), secret: true },
@@ -189,7 +189,6 @@ export class ArticledropSettingTab extends PluginSettingTab {
 		const defaults = defaultSettings();
 		switch (key) {
 			case "folder":
-			case "paperFolder":
 			case "pdfFolder":
 				s[key] = normalizePath(text || defaults[key]);
 				break;
@@ -285,6 +284,9 @@ export class ArticledropSettingTab extends PluginSettingTab {
 					if (spec.secret) items.push({ name: spec.name, desc: spec.desc, render: (setting) => this.renderSecret(setting, spec) });
 					else items.push({ name: spec.name, desc: spec.desc, control: { type: "text", key: spec.key } });
 					break;
+				case "folder":
+					items.push({ name: spec.name, desc: spec.desc, control: { type: "folder", key: spec.key } });
+					break;
 				case "template":
 					items.push({ name: spec.name, desc: spec.desc, render: (setting) => this.renderTemplate(setting, spec) });
 					break;
@@ -333,6 +335,14 @@ export class ArticledropSettingTab extends PluginSettingTab {
 					setting.setName(spec.name);
 					if (spec.desc) setting.setDesc(spec.desc);
 					setting.addText((tx) => tx.setValue(this.textValue(spec.key)).onChange((v) => void this.setControlValue(spec.key, v)));
+					break;
+				case "folder":
+					setting.setName(spec.name);
+					if (spec.desc) setting.setDesc(spec.desc);
+					setting.addText((tx) => {
+						tx.setValue(this.textValue(spec.key)).onChange((v) => void this.setControlValue(spec.key, v));
+						new FolderSuggest(this.app, tx.inputEl);
+					});
 					break;
 				case "template":
 					this.renderTemplate(setting, spec);

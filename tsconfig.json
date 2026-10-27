@@ -12,7 +12,14 @@
 		"importHelpers": true,
 		"isolatedModules": true,
 		"esModuleInterop": true,
-		"lib": ["DOM", "DOM.Iterable", "ES5", "ES6", "ES7", "ES2018"]
+		"lib": [
+			"DOM",
+			"DOM.Iterable",
+			"ES2020"
+		],
+		"types": []
 	},
-	"include": ["src/**/*.ts"]
+	"include": [
+		"src/**/*.ts"
+	]
 }

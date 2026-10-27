@@ -33,6 +33,7 @@ export interface SaveOptions {
 	project: string;
 	status: string;
 	rating: number; // 0 = not rated
+	folder: string; // where the note goes; "" = the default folder
 }
 
 export interface ArticledropSettings {
@@ -53,7 +54,6 @@ export interface ArticledropSettings {
 	bibliographyHeading: string;
 
 	// Papers
-	paperFolder: string;
 	paperFileNameTemplate: string;
 	paperTemplate: string;
 	paperSource: PaperSource;
@@ -97,6 +97,7 @@ export interface Paper {
 }
 
 export interface PaperSaveOptions {
+	folder: string;
 	rating: number;
 	tags: string[];
 	project: string;

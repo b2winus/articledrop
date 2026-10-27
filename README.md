@@ -20,6 +20,12 @@ Save web articles and scholarly papers into Obsidian as research notes — metad
 - **Duplicate detection** — saving a URL you already have opens the existing note (tracking parameters like `utm_*` are ignored).
 - **Template** — the note body is a template with `{{placeholders}}` and conditional sections.
 
+## One folder, told apart by tags
+
+Articles and papers are saved in the same folder (`자료` / `Sources` by default). Web articles get the `article` tag and papers the `paper` tag (both configurable), and every note also has `type: article` or `type: paper`, which the index uses for its *Articles* and *Papers* views.
+
+Every save window has a **Folder** field: type a keyword and matching folders in your vault are listed (folder-name matches first). Leave it as is for the default folder, or type a new name to create a folder.
+
 ## Scholarly papers
 
 - **Search scholarly papers** (graduation-cap ribbon icon) — search by title or keywords and pick a result to save it. Sources:
@@ -31,7 +37,7 @@ Save web articles and scholarly papers into Obsidian as research notes — metad
 - **Save paper by DOI or arXiv ID** — paste `10.xxxx/…`, a `doi.org` link, `arXiv:2101.00001` or an arxiv.org link.
 - **Automatic** — saving a `doi.org` / `arxiv.org` URL, or a journal article page that declares its DOI, creates a paper note instead of a web-article note. *Save all links in current note* also picks up bare DOIs and `arXiv:` ids.
 - **Merged metadata** — Crossref supplies authoritative bibliographic data; OpenAlex adds the abstract, keywords, citation count and open-access PDF.
-- **Open-access PDFs** — optionally downloaded into your vault (`논문/PDF` by default) and linked from the note's `pdf` property. *Download open-access PDF for current paper* adds one later.
+- **Open-access PDFs** — optionally downloaded into your vault (`자료/PDF` by default) and linked from the note's `pdf` property. *Download open-access PDF for current paper* adds one later.
 - **Citations and BibTeX** — journal-article citations in Korean, Chicago, APA 7 or MLA 9; a `citekey`; *Copy BibTeX of current paper*.
 
 Paper notes use `type: paper` and properties such as `authors`, `year`, `journal`, `volume`, `issue`, `pages`, `doi`, `arxiv`, `pdf`, `keywords`, `cited_by`, `citekey`. The index has separate *Articles* and *Papers* views.

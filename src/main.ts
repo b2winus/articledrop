@@ -161,9 +161,11 @@ export default class ArticledropPlugin extends Plugin {
 	// -------------------------------------------------------------------------
 
 	async loadSettings() {
-		const data = ((await this.loadData()) ?? {}) as Partial<ArticledropSettings>;
+		const data = ((await this.loadData()) ?? {}) as Partial<ArticledropSettings> & { paperFolder?: string };
 		setLanguage(data.language ?? "auto");
-		this.settings = Object.assign(defaultSettings(), data);
+		// 0.4.0: articles and papers share one folder (told apart by tags); the old paper folder setting is dropped.
+		delete data.paperFolder;
+		this.settings = { ...defaultSettings(), ...data };
 	}
 
 	async saveSettings() {
@@ -182,6 +184,7 @@ export default class ArticledropPlugin extends Plugin {
 			project: "",
 			status: this.settings.defaultStatus,
 			rating: 0,
+			folder: this.settings.folder,
 		};
 	}
 
@@ -192,15 +195,16 @@ export default class ArticledropPlugin extends Plugin {
 	/** Article and paper notes made by this plugin. */
 	private articleFiles(): TFile[] {
 		const a = this.folderPrefix();
-		const p = this.folderPrefix(this.settings.paperFolder);
 		return this.app.vault.getMarkdownFiles().filter((f) => {
 			const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
-			return (
-				!!fm &&
-				typeof fm.url === "string" &&
-				(fm.type === "article" || fm.type === "paper" || (a && f.path.startsWith(a)) || (p && f.path.startsWith(p)))
-			);
+			return !!fm && typeof fm.url === "string" && (fm.type === "article" || fm.type === "paper" || (!!a && f.path.startsWith(a)));
 		});
+	}
+
+	/** Folder typed in a save window, or the default folder when left empty. */
+	private cleanFolder(folder: string | undefined): string {
+		const f = (folder ?? "").trim().replace(/^\/+|\/+$/g, "");
+		return f ? normalizePath(f) : this.settings.folder;
 	}
 
 	private folderPrefix(folder: string = this.settings.folder): string {
@@ -278,6 +282,7 @@ export default class ArticledropPlugin extends Plugin {
 			defaultTags: this.settings.defaultTags,
 			statuses: this.settings.statuses,
 			defaultStatus: this.settings.defaultStatus,
+			defaultFolder: this.settings.folder,
 			knownTags: this.knownTags,
 			knownProjects: this.knownProjects,
 			onSubmit: async (opts) => !!(await this.saveArticle(opts, target)),
@@ -314,6 +319,7 @@ export default class ArticledropPlugin extends Plugin {
 			defaultTags: this.settings.defaultTags,
 			statuses: this.settings.statuses,
 			defaultStatus: this.settings.defaultStatus,
+			defaultFolder: this.settings.folder,
 			knownTags: this.knownTags,
 			knownProjects: this.knownProjects,
 			onSubmit: (urls, opts) => void this.runBatch(source, urls, opts),
@@ -417,20 +423,18 @@ export default class ArticledropPlugin extends Plugin {
 		if (opts.includeContent && !article.contentMarkdown && !flags.quiet) new Notice(t("notice.noContent"));
 
 		const text = this.buildNote(article, opts);
+		const folder = this.cleanFolder(opts.folder);
 		let file: TFile;
 
+		await this.ensureFolder(folder);
 		if (target) {
 			this.ownWrites.add(target.path);
 			await this.app.vault.process(target, () => text);
-			const desired = this.uniquePath(this.fileNameFor(article), target.path);
-			if (desired !== target.path) {
-				await this.ensureFolder();
-				await this.app.fileManager.renameFile(target, desired);
-			}
+			const desired = this.uniquePath(this.fileNameFor(article), target.path, folder);
+			if (desired !== target.path) await this.app.fileManager.renameFile(target, desired);
 			file = target;
 		} else {
-			await this.ensureFolder();
-			const path = this.uniquePath(this.fileNameFor(article));
+			const path = this.uniquePath(this.fileNameFor(article), undefined, folder);
 			this.ownWrites.add(path);
 			file = await this.app.vault.create(path, text);
 		}
@@ -734,7 +738,7 @@ export default class ArticledropPlugin extends Plugin {
 		const paperCols = ["file.name", "note.authors", "note.year", "note.journal", "note.cited_by", "note.status", "note.rating", "note.project", "note.pdf", "note.saved"];
 
 		const inFolder = (f: string) => (normalizePath(f) === "/" ? "" : `file.inFolder(${JSON.stringify(normalizePath(f))})`);
-		const scope = [inFolder(this.settings.folder), inFolder(this.settings.paperFolder)].filter(Boolean);
+		const scope = [inFolder(this.settings.folder)].filter(Boolean);
 
 		const base = {
 			filters: {
@@ -791,8 +795,15 @@ export default class ArticledropPlugin extends Plugin {
 		return { contactEmail: this.settings.contactEmail, openAlexKey: this.settings.openAlexKey, kciKey: this.settings.kciKey };
 	}
 
-	private paperOptionsFrom(opts: { tags: string[]; project: string; status: string; rating?: number }): PaperSaveOptions {
-		return { tags: opts.tags, project: opts.project, status: opts.status, rating: opts.rating ?? 0, downloadPdf: this.settings.downloadPdf };
+	private paperOptionsFrom(opts: { tags: string[]; project: string; status: string; rating?: number; folder?: string }): PaperSaveOptions {
+		return {
+			tags: opts.tags,
+			project: opts.project,
+			status: opts.status,
+			rating: opts.rating ?? 0,
+			folder: opts.folder || this.settings.folder,
+			downloadPdf: this.settings.downloadPdf,
+		};
 	}
 
 	openPaperSearch(initialQuery?: string) {
@@ -831,6 +842,7 @@ export default class ArticledropPlugin extends Plugin {
 				defaultTags: this.settings.defaultPaperTags,
 				statuses: this.settings.statuses,
 				defaultStatus: this.settings.defaultStatus,
+			defaultFolder: this.settings.folder,
 				defaultDownloadPdf: this.settings.downloadPdf,
 				knownTags: this.knownTags,
 				knownProjects: this.knownProjects,
@@ -898,15 +910,16 @@ export default class ArticledropPlugin extends Plugin {
 		const text = this.buildPaperNote(paper, opts, pdfLink);
 		const baseName = this.paperFileName(paper);
 		let file: TFile;
-		await this.ensureFolder(this.settings.paperFolder);
+		const folder = this.cleanFolder(opts.folder);
+		await this.ensureFolder(folder);
 		if (target) {
 			this.ownWrites.add(target.path);
 			await this.app.vault.process(target, () => text);
-			const desired = this.uniquePath(baseName, target.path, this.settings.paperFolder);
+			const desired = this.uniquePath(baseName, target.path, folder);
 			if (desired !== target.path) await this.app.fileManager.renameFile(target, desired);
 			file = target;
 		} else {
-			const path = this.uniquePath(baseName, undefined, this.settings.paperFolder);
+			const path = this.uniquePath(baseName, undefined, folder);
 			this.ownWrites.add(path);
 			file = await this.app.vault.create(path, text);
 		}

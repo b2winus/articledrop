@@ -1,6 +1,6 @@
 import { App, ButtonComponent, DropdownComponent, Modal, Setting, TextComponent, setIcon } from "obsidian";
 import { t } from "./i18n";
-import { ListSuggest, addRatingSetting } from "./modals";
+import { ListSuggest, addFolderSetting, addRatingSetting } from "./modals";
 import { splitList } from "./render";
 import type { Paper, PaperSaveOptions, PaperSource } from "./types";
 
@@ -153,6 +153,7 @@ export interface PaperSaveContext {
 	defaultTags: string;
 	statuses: string[];
 	defaultStatus: string;
+	defaultFolder: string;
 	defaultDownloadPdf: boolean;
 	knownTags: () => string[];
 	knownProjects: () => string[];
@@ -183,6 +184,7 @@ export class PaperSaveModal extends Modal {
 			project: "",
 			status: this.ctx.defaultStatus,
 			rating: 0,
+			folder: this.ctx.defaultFolder,
 			downloadPdf: this.ctx.defaultDownloadPdf && !!p.pdfUrl,
 		};
 
@@ -210,6 +212,7 @@ export class PaperSaveModal extends Modal {
 		});
 
 		addRatingSetting(contentEl, 0, (n) => (opts.rating = n));
+		addFolderSetting(this.app, contentEl, this.ctx.defaultFolder, (v) => (opts.folder = v));
 
 		new Setting(contentEl)
 			.setName(t("paper.downloadPdf"))

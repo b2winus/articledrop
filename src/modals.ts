@@ -1,7 +1,7 @@
-import { AbstractInputSuggest, App, ButtonComponent, Modal, Setting, SuggestModal, TextComponent } from "obsidian";
+import { AbstractInputSuggest, App, ButtonComponent, Modal, Setting, SuggestModal, TFolder, TextComponent } from "obsidian";
 import { t } from "./i18n";
 import { isHttpUrl } from "./extract";
-import { splitList, stars } from "./render";
+import { rankFolders, splitList, stars } from "./render";
 import type { SaveOptions } from "./types";
 
 /** Suggests values for a comma-separated input, completing only the last item. */
@@ -35,6 +35,46 @@ export class ListSuggest extends AbstractInputSuggest<string> {
 	}
 }
 
+/** Lists vault folders whose path contains what was typed (e.g. "설교" → "자료/설교/디도서"). */
+export class FolderSuggest extends AbstractInputSuggest<TFolder> {
+	constructor(app: App, private input: HTMLInputElement) {
+		super(app, input);
+		this.limit = 50;
+	}
+
+	protected getSuggestions(query: string): TFolder[] {
+		const folders = new Map<string, TFolder>();
+		for (const f of this.app.vault.getAllLoadedFiles()) if (f instanceof TFolder && !f.isRoot()) folders.set(f.path, f);
+		return rankFolders([...folders.keys()], query)
+			.map((p) => folders.get(p))
+			.filter((f): f is TFolder => f instanceof TFolder);
+	}
+
+	renderSuggestion(folder: TFolder, el: HTMLElement): void {
+		el.addClass("articledrop-folder-suggestion");
+		el.createDiv({ text: folder.name, cls: "articledrop-folder-name" });
+		if (folder.parent && !folder.parent.isRoot()) el.createDiv({ text: folder.parent.path, cls: "articledrop-folder-parent" });
+	}
+
+	selectSuggestion(folder: TFolder): void {
+		this.setValue(folder.path);
+		this.input.dispatchEvent(new Event("input"));
+		this.close();
+	}
+}
+
+/** "Folder" field with folder suggestions; empty means the default folder. */
+export function addFolderSetting(app: App, container: HTMLElement, defaultFolder: string, onChange: (v: string) => void): Setting {
+	return new Setting(container)
+		.setName(t("modal.folder"))
+		.setDesc(t("modal.folderDesc"))
+		.addText((tx) => {
+			tx.setPlaceholder(defaultFolder).setValue(defaultFolder).onChange((v) => onChange(v.trim()));
+			tx.inputEl.addClass("articledrop-folder-input");
+			new FolderSuggest(app, tx.inputEl);
+		});
+}
+
 /** "Rating" dropdown: — / ★ … ★★★★★ */
 export function addRatingSetting(container: HTMLElement, value: number, onChange: (n: number) => void): Setting {
 	return new Setting(container).setName(t("modal.rating")).addDropdown((dd) => {
@@ -51,6 +91,7 @@ export interface SaveModalContext {
 	defaultTags: string;
 	statuses: string[];
 	defaultStatus: string;
+	defaultFolder: string;
 	knownTags: () => string[];
 	knownProjects: () => string[];
 	onSubmit: (opts: SaveOptions) => Promise<boolean>;
@@ -68,6 +109,7 @@ export class SaveModal extends Modal {
 			project: "",
 			status: ctx.defaultStatus,
 			rating: 0,
+			folder: ctx.defaultFolder,
 		};
 	}
 
@@ -115,6 +157,7 @@ export class SaveModal extends Modal {
 		});
 
 		addRatingSetting(contentEl, this.opts.rating, (n) => (this.opts.rating = n));
+		addFolderSetting(this.app, contentEl, this.ctx.defaultFolder, (v) => (this.opts.folder = v));
 
 		let button: ButtonComponent | undefined;
 		const submit = async () => {
@@ -165,6 +208,7 @@ export interface BatchModalContext {
 	defaultTags: string;
 	statuses: string[];
 	defaultStatus: string;
+	defaultFolder: string;
 	knownTags: () => string[];
 	knownProjects: () => string[];
 	onSubmit: (urls: string[], opts: Omit<SaveOptions, "url">) => void;
@@ -235,6 +279,9 @@ export class BatchModal extends Modal {
 			new ListSuggest(this.app, tx.inputEl, this.ctx.knownProjects);
 		});
 
+		let folder = this.ctx.defaultFolder;
+		addFolderSetting(this.app, contentEl, this.ctx.defaultFolder, (v) => (folder = v));
+
 		let status = this.ctx.defaultStatus;
 		new Setting(contentEl).setName(t("modal.status")).addDropdown((dd) => {
 			for (const st of this.ctx.statuses) dd.addOption(st, st);
@@ -249,7 +296,7 @@ export class BatchModal extends Modal {
 					const urls = items.filter((i) => i.selected).map((i) => i.url);
 					if (!urls.length) return;
 					this.close();
-					this.ctx.onSubmit(urls, { includeContent, tags: splitList(tags), project, status, rating: 0 });
+					this.ctx.onSubmit(urls, { includeContent, tags: splitList(tags), project, status, rating: 0, folder });
 				})
 		);
 	}

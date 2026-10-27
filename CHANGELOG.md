@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+- **Folder field with suggestions** in every save window (article, paper, batch): type a keyword and matching vault folders are listed; a new name creates the folder. The folder settings suggest folders too.
+- **One folder for articles and papers.** The separate paper folder setting is removed; papers are saved in the same folder as articles and told apart by tags (`article` / `paper`) and the `type` property. Notes already in the old paper folder stay where they are and still appear in the index.
+- New installs default to the folder `자료` / `Sources` and `자료/PDF` / `Sources/PDF` for PDFs. Existing settings are kept.
+
+## 0.3.4
+- Fixed the remaining "unsafe `any`/`error` type" review warnings: `tsconfig.json` listed JavaScript built-ins only up to ES2018, so `Array.flat`, `String.trimEnd` and `Promise.allSettled` were unresolved types on the review bot. The library is now ES2020, and Node typings are excluded (`"types": []`) so local checks match the bot.
+
 ## 0.3.3
 - Fixed the review bot's install failure: `package-lock.json` was generated with `--legacy-peer-deps` and lacked peer packages, so a plain `npm ci` refused to install. Regenerated it with a normal `npm install`; `npm ci`, build, tests and lint all pass from a clean copy.
 - Packaging now runs that clean `npm ci` check before making the zip.

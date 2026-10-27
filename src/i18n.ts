@@ -36,6 +36,8 @@ const en = {
 	"modal.status": "Reading status",
 	"modal.save": "Save",
 	"modal.saving": "Saving…",
+	"modal.folder": "Folder",
+	"modal.folderDesc": "Type a keyword to pick an existing folder. A new name creates the folder.",
 
 	// batch modal
 	"batch.title": "Save links from this note",
@@ -71,8 +73,8 @@ const en = {
 
 	// settings
 	"set.general": "General",
-	"set.folder": "Article folder",
-	"set.folderDesc": "Where new article notes are created.",
+	"set.folder": "Folder",
+	"set.folderDesc": "Default folder for new article and paper notes. They are told apart by tags (article / paper) and the type property.",
 	"set.fileName": "File name template",
 	"set.fileNameDesc": "Placeholders: {{title}}, {{site}}, {{author}}, {{published}}, {{saved}}.",
 	"set.contentMode": "Full text",
@@ -86,7 +88,7 @@ const en = {
 	"set.langAuto": "Follow Obsidian",
 	"set.organize": "Tags, projects and status",
 	"set.defaultTags": "Default tags",
-	"set.defaultTagsDesc": "Added to every article. Comma-separated.",
+	"set.defaultTagsDesc": "Added to every web article. Comma-separated.",
 	"set.statuses": "Reading statuses",
 	"set.statusesDesc": "Comma-separated, in order.",
 	"set.defaultStatus": "Default status",
@@ -146,7 +148,6 @@ const en = {
 	"note.abstract": "Abstract",
 	"note.link": "Read the paper",
 	"set.papers": "Scholarly papers",
-	"set.paperFolder": "Paper folder",
 	"set.paperFileName": "Paper file name template",
 	"set.paperFileNameDesc": "Placeholders: {{title}}, {{firstAuthor}}, {{year}}, {{journal}}, {{citekey}}.",
 	"set.paperSource": "Default search source",
@@ -222,6 +223,8 @@ const ko: Record<keyof typeof en, string> = {
 	"modal.status": "읽기 상태",
 	"modal.save": "저장",
 	"modal.saving": "저장 중…",
+	"modal.folder": "폴더",
+	"modal.folderDesc": "키워드를 입력하면 볼트의 폴더 목록이 나옵니다. 없는 이름을 쓰면 새 폴더를 만듭니다.",
 
 	"batch.title": "이 노트의 링크 저장",
 	"batch.none": "이 노트에서 링크를 찾지 못했습니다.",
@@ -253,8 +256,8 @@ const ko: Record<keyof typeof en, string> = {
 	"note.original": "원문 보기",
 
 	"set.general": "일반",
-	"set.folder": "아티클 폴더",
-	"set.folderDesc": "새 아티클 노트가 만들어질 폴더.",
+	"set.folder": "저장 폴더",
+	"set.folderDesc": "아티클과 논문 노트를 함께 저장할 기본 폴더. 둘은 태그(article / paper)와 type 속성으로 구분됩니다.",
 	"set.fileName": "파일 이름 형식",
 	"set.fileNameDesc": "사용 가능: {{title}}, {{site}}, {{author}}, {{published}}, {{saved}}.",
 	"set.contentMode": "본문 저장",
@@ -268,7 +271,7 @@ const ko: Record<keyof typeof en, string> = {
 	"set.langAuto": "Obsidian 설정 따르기",
 	"set.organize": "태그 · 프로젝트 · 상태",
 	"set.defaultTags": "기본 태그",
-	"set.defaultTagsDesc": "모든 아티클에 붙는 태그. 쉼표로 구분.",
+	"set.defaultTagsDesc": "모든 웹 아티클에 붙는 태그. 쉼표로 구분.",
 	"set.statuses": "읽기 상태 목록",
 	"set.statusesDesc": "쉼표로 구분, 순서대로.",
 	"set.defaultStatus": "기본 상태",
@@ -327,7 +330,6 @@ const ko: Record<keyof typeof en, string> = {
 	"note.abstract": "초록",
 	"note.link": "논문 보기",
 	"set.papers": "학술 논문",
-	"set.paperFolder": "논문 폴더",
 	"set.paperFileName": "논문 파일 이름 형식",
 	"set.paperFileNameDesc": "사용 가능: {{title}}, {{firstAuthor}}, {{year}}, {{journal}}, {{citekey}}.",
 	"set.paperSource": "기본 검색 소스",

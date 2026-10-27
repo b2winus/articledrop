@@ -325,4 +325,14 @@ test("next footnote number", () => {
 	assert.equal(m.nextFootnote("no notes"), 1);
 	assert.equal(m.nextFootnote("a[^1] b[^3]\n\n[^1]: x\n[^3]: y\n[^note]: z"), 4);
 });
+console.log("v0.4 folders");
+test("folder suggestions rank by name match", () => {
+	const paths = ["자료", "자료/설교", "자료/설교/디도서", "설교 준비", "ISF/보고서", "아카이브/옛 설교"];
+	assert.deepEqual(m.rankFolders(paths, "설교"), ["설교 준비", "자료/설교", "아카이브/옛 설교", "자료/설교/디도서"]);
+	assert.deepEqual(m.rankFolders(paths, "디도"), ["자료/설교/디도서"]);
+	assert.deepEqual(m.rankFolders(paths, "isf"), ["ISF/보고서"]);
+	assert.equal(m.rankFolders(paths, "").length, paths.length);
+	assert.deepEqual(m.rankFolders(paths, "없는폴더"), []);
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ", some failed" : ""}`);
