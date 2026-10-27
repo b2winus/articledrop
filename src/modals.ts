@@ -329,3 +329,89 @@ export class StatusModal extends SuggestModal<string> {
 	}
 }
 
+
+// ---------------------------------------------------------------------------
+// Organize a note that already has content (Web Clipper clips)
+// ---------------------------------------------------------------------------
+
+export interface OrganizeOptions {
+	tags: string[];
+	project: string;
+	status: string;
+	rating: number;
+	folder: string;
+}
+
+export interface OrganizeModalContext {
+	title: string;
+	url: string;
+	defaultTags: string;
+	statuses: string[];
+	defaultStatus: string;
+	defaultFolder: string;
+	knownTags: () => string[];
+	knownProjects: () => string[];
+	onSubmit: (opts: OrganizeOptions) => Promise<boolean>;
+}
+
+export class OrganizeModal extends Modal {
+	constructor(app: App, private ctx: OrganizeModalContext) {
+		super(app);
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		this.titleEl.setText(t("clip.title"));
+		contentEl.addClass("articledrop-modal");
+		const head = contentEl.createDiv({ cls: "articledrop-paper-head" });
+		head.createDiv({ text: this.ctx.title, cls: "articledrop-result-title" });
+		head.createDiv({ text: this.ctx.url, cls: "articledrop-result-meta" });
+
+		const opts: OrganizeOptions = { tags: [], project: "", status: this.ctx.defaultStatus, rating: 0, folder: this.ctx.defaultFolder };
+		let tagsValue = "";
+		new Setting(contentEl)
+			.setName(t("modal.tags"))
+			.setDesc(t("modal.tagsDesc"))
+			.addText((tx) => {
+				tx.setPlaceholder(this.ctx.defaultTags).onChange((v) => (tagsValue = v));
+				new ListSuggest(this.app, tx.inputEl, this.ctx.knownTags);
+			});
+		new Setting(contentEl)
+			.setName(t("modal.project"))
+			.setDesc(t("modal.projectDesc"))
+			.addText((tx) => {
+				tx.onChange((v) => (opts.project = v));
+				new ListSuggest(this.app, tx.inputEl, this.ctx.knownProjects);
+				window.setTimeout(() => tx.inputEl.focus(), 10);
+			});
+		new Setting(contentEl).setName(t("modal.status")).addDropdown((dd) => {
+			for (const st of this.ctx.statuses) dd.addOption(st, st);
+			dd.setValue(opts.status).onChange((v) => (opts.status = v));
+		});
+		addRatingSetting(contentEl, 0, (n) => (opts.rating = n));
+		addFolderSetting(this.app, contentEl, this.ctx.defaultFolder, (v) => (opts.folder = v));
+
+		let button: ButtonComponent | undefined;
+		const submit = async () => {
+			button?.setDisabled(true).setButtonText(t("modal.saving"));
+			opts.tags = splitList(tagsValue);
+			if (await this.ctx.onSubmit(opts)) this.close();
+			else button?.setDisabled(false).setButtonText(t("clip.organize"));
+		};
+		new Setting(contentEl)
+			.addButton((b) => b.setButtonText(t("clip.later")).onClick(() => this.close()))
+			.addButton((b) => {
+				button = b;
+				b.setButtonText(t("clip.organize")).setCta().onClick(() => void submit());
+			});
+		this.scope.register([], "Enter", (evt) => {
+			if (activeDocument.querySelector(".suggestion-container")) return;
+			evt.preventDefault();
+			void submit();
+		});
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}

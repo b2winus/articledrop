@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const out = join(mkdtempSync(join(tmpdir(), "articledrop-test-")), "bundle.mjs");
 await esbuild.build({
 	stdin: {
-		contents: `export * from "./src/extract"; export * from "./src/render"; export * from "./src/charset"; export * from "./src/scholar";`,
+		contents: `export * from "./src/extract"; export * from "./src/render"; export * from "./src/charset"; export * from "./src/scholar"; export * from "./src/clipper";`,
 		resolveDir: join(here, ".."),
 		loader: "ts",
 	},
@@ -333,6 +333,64 @@ test("folder suggestions rank by name match", () => {
 	assert.deepEqual(m.rankFolders(paths, "isf"), ["ISF/보고서"]);
 	assert.equal(m.rankFolders(paths, "").length, paths.length);
 	assert.deepEqual(m.rankFolders(paths, "없는폴더"), []);
+});
+
+console.log("v0.5 web clipper");
+const CLIP = `---
+title: "왜 환대인가"
+source: "https://example.com/hospitality?utm_source=x"
+author:
+  - "[[홍길동]]"
+  - "[[people/Jane Doe|Jane]]"
+published: 2026-10-01
+created: 2026-10-27
+description: "이주민과 함께 사는 교회"
+tags:
+  - "clippings"
+  - "환대"
+---
+# 왜 환대인가
+
+본문 첫 문단.
+
+![사진](https://example.com/a.jpg)
+`;
+test("split frontmatter keeps the body exactly", () => {
+	const { yaml, body } = m.splitFrontmatter(CLIP);
+	assert.match(yaml, /^title: "왜 환대인가"/);
+	assert.ok(body.startsWith("# 왜 환대인가\n\n본문 첫 문단."));
+	assert.deepEqual(m.splitFrontmatter("no frontmatter"), { yaml: "", body: "no frontmatter" });
+});
+test("parse default Web Clipper properties", () => {
+	const fm = {
+		title: "왜 환대인가",
+		source: "https://example.com/hospitality?utm_source=x",
+		author: ["[[홍길동]]", "[[people/Jane Doe|Jane]]"],
+		published: "2026-10-01",
+		created: "2026-10-27",
+		description: "이주민과 함께 사는 교회",
+		tags: ["clippings", "환대"],
+	};
+	const c = m.parseClip(fm, "\n# 본문\n\n내용\n", "fallback", "2026-10-28");
+	assert.equal(c.url, "https://example.com/hospitality?utm_source=x");
+	assert.equal(c.author, "홍길동, Jane");
+	assert.equal(c.published, "2026-10-01");
+	assert.equal(c.saved, "2026-10-27");
+	assert.deepEqual(c.tags, ["환대"]);
+	assert.equal(c.body, "# 본문\n\n내용");
+	assert.equal(m.isClip(fm), true);
+});
+test("clip detection and fallbacks", () => {
+	assert.equal(m.isClip({ source: "https://a.com", type: "article" }), false);
+	assert.equal(m.isClip({ source: "not a url" }), false);
+	assert.equal(m.isClip({ url: "https://a.com/x" }), true);
+	assert.equal(m.isClip(null), false);
+	const c = m.parseClip({ url: "https://a.com/x", author: "[[Kim]]", tags: "clippings article-ish" }, "", "제목 없음", "2026-10-28");
+	assert.equal(c.title, "제목 없음");
+	assert.equal(c.author, "Kim");
+	assert.equal(c.saved, "2026-10-28");
+	assert.deepEqual(c.tags, ["article-ish"]);
+	assert.equal(m.stripWikilink("[[a/b/C D]]"), "C D");
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", some failed" : ""}`);

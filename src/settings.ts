@@ -66,6 +66,8 @@ export function defaultSettings(): ArticledropSettings {
 		indexFileName: ko ? "자료 목록" : "Research index",
 		language: "auto",
 		insertMode: "footnote",
+		clipperMode: "ask",
+		clipperFolder: "Clippings",
 		bibliographyHeading: t("note.bibliography"),
 
 		paperFileNameTemplate: "{{firstAuthor}} ({{year}}) {{title}}",
@@ -87,7 +89,7 @@ type Spec =
 	| { kind: "heading"; name: string }
 	| { kind: "info"; name: string; desc?: string }
 	| { kind: "text"; key: Key; name: string; desc?: string; secret?: boolean }
-	| { kind: "folder"; key: "folder" | "pdfFolder"; name: string; desc?: string }
+	| { kind: "folder"; key: "folder" | "pdfFolder" | "clipperFolder"; name: string; desc?: string }
 	| { kind: "toggle"; key: Key; name: string; desc?: string }
 	| { kind: "dropdown"; key: Key; name: string; desc?: string; options: Record<string, string> }
 	| { kind: "template"; key: "bodyTemplate" | "paperTemplate"; name: string; desc: string; rows: number; reset: () => string };
@@ -137,6 +139,17 @@ export class ArticledropSettingTab extends PluginSettingTab {
 			{ kind: "toggle", key: "batchLinkBack", name: t("set.batchLinkBack"), desc: t("set.batchLinkBackDesc") },
 			{ kind: "toggle", key: "convertSharedNotes", name: t("set.convertShared"), desc: t("set.convertSharedDesc") },
 			{ kind: "info", name: t("set.mobile"), desc: t("set.mobileDesc") },
+
+			{ kind: "heading", name: t("set.clipper") },
+			{ kind: "info", name: t("set.clipperIntro") },
+			{
+				kind: "dropdown",
+				key: "clipperMode",
+				name: t("set.clipperMode"),
+				desc: t("set.clipperModeDesc"),
+				options: { ask: t("set.clipperAsk"), auto: t("set.clipperAuto"), off: t("set.clipperOff") },
+			},
+			{ kind: "folder", key: "clipperFolder", name: t("set.clipperFolder"), desc: t("set.clipperFolderDesc") },
 
 			{ kind: "heading", name: t("set.papers") },
 			{ kind: "info", name: t("paper.hint") },
@@ -190,6 +203,7 @@ export class ArticledropSettingTab extends PluginSettingTab {
 		switch (key) {
 			case "folder":
 			case "pdfFolder":
+			case "clipperFolder":
 				s[key] = normalizePath(text || defaults[key]);
 				break;
 			case "statuses": {

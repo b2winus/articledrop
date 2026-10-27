@@ -1,8 +1,9 @@
-import { Editor, MarkdownFileInfo, MarkdownView, Notice, Plugin, TFile, TFolder, getAllTags, normalizePath, stringifyYaml } from "obsidian";
+import { Editor, MarkdownFileInfo, MarkdownView, Notice, Plugin, TFile, TFolder, getAllTags, normalizePath, parseYaml, stringifyYaml } from "obsidian";
+import { isClip, parseClip, splitFrontmatter } from "./clipper";
 import { fetchArticle } from "./fetcher";
 import { findUrls, isHttpUrl, normalizeUrl } from "./extract";
 import { setLanguage, t } from "./i18n";
-import { BatchModal, BatchItem, SaveModal, StatusModal } from "./modals";
+import { BatchModal, BatchItem, OrganizeModal, OrganizeOptions, SaveModal, StatusModal } from "./modals";
 import { appendToSection, buildCitation, memoEntry, nextFootnote, quoteEntry, renderTemplate, sanitizeFileName, splitList, stars, toTag, today, uniq } from "./render";
 import { EntryKind, EntryModal, RatingModal, SourceItem, SourcePickerModal } from "./research-modals";
 import { ArticledropSettingTab, defaultSettings } from "./settings";
@@ -129,6 +130,19 @@ export default class ArticledropPlugin extends Plugin {
 			},
 		});
 
+		// Obsidian Web Clipper
+		this.addCommand({ id: "organize-clippings", name: t("cmd.organizeClips"), callback: () => void this.organizeAllClips() });
+		this.addCommand({
+			id: "organize-current-note",
+			name: t("cmd.organizeNote"),
+			checkCallback: (checking) => {
+				const file = this.app.workspace.getActiveFile();
+				if (!file || file.extension !== "md") return false;
+				if (!checking) void this.askOrganize(file, true);
+				return true;
+			},
+		});
+
 		// obsidian://articledrop?url=...
 		this.registerObsidianProtocolHandler("articledrop", (params) => {
 			if (params.paper !== undefined) return this.openPaperSearch(params.paper);
@@ -141,8 +155,13 @@ export default class ArticledropPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => {
 			this.registerEvent(
 				this.app.vault.on("create", (f) => {
-					if (!(f instanceof TFile) || f.extension !== "md") return;
-					if (!this.settings.convertSharedNotes || this.ownWrites.has(f.path)) return;
+					if (!(f instanceof TFile) || f.extension !== "md" || this.ownWrites.has(f.path)) return;
+					if (this.settings.clipperMode !== "off" && this.inClipperFolder(f)) {
+						// The Clipper writes the whole note at once; give the cache a moment, then look.
+						window.setTimeout(() => void this.onNewClip(f), 1200);
+						return;
+					}
+					if (!this.settings.convertSharedNotes) return;
 					this.recentlyCreated.set(f.path, Date.now());
 					window.setTimeout(() => void this.checkSharedNote(f), 1500);
 				})
@@ -421,7 +440,11 @@ export default class ArticledropPlugin extends Plugin {
 		}
 
 		if (opts.includeContent && !article.contentMarkdown && !flags.quiet) new Notice(t("notice.noContent"));
+		return this.writeArticle(article, opts, target, flags);
+	}
 
+	/** Write an article note (new file, or replace `target` and move it into the folder). */
+	private async writeArticle(article: ExtractedArticle, opts: SaveOptions, target?: TFile, flags: { quiet?: boolean } = {}): Promise<TFile> {
 		const text = this.buildNote(article, opts);
 		const folder = this.cleanFolder(opts.folder);
 		let file: TFile;
@@ -446,8 +469,157 @@ export default class ArticledropPlugin extends Plugin {
 		return file;
 	}
 
+	// -------------------------------------------------------------------------
+	// Obsidian Web Clipper
+	// -------------------------------------------------------------------------
+
+	private inClipperFolder(file: TFile): boolean {
+		const prefix = this.folderPrefix(this.settings.clipperFolder || "Clippings");
+		return !!prefix && file.path.startsWith(prefix);
+	}
+
+	/** Read a note's frontmatter straight from disk (the metadata cache may lag behind a fresh file). */
+	private async readNote(file: TFile): Promise<{ fm: Record<string, unknown>; body: string }> {
+		const { yaml, body } = splitFrontmatter(await this.app.vault.read(file));
+		let fm: Record<string, unknown> = {};
+		try {
+			const parsed: unknown = yaml ? parseYaml(yaml) : null;
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) fm = parsed as Record<string, unknown>;
+		} catch {
+			/* not YAML we understand */
+		}
+		return { fm, body };
+	}
+
+	private async onNewClip(file: TFile) {
+		if (this.handledShared.has(file.path) || this.ownWrites.has(file.path)) return;
+		// Only clips made just now on this device: skip old files and notes that arrive by sync in the background.
+		if (Date.now() - file.stat.ctime > 2 * 60 * 1000 || activeDocument.visibilityState !== "visible") return;
+		const { fm } = await this.readNote(file);
+		if (!isClip(fm)) return;
+		this.handledShared.add(file.path);
+		if (this.settings.clipperMode === "auto") await this.organizeClip(file, this.defaultOrganize(), {});
+		else await this.askOrganize(file, false);
+	}
+
+	private defaultOrganize(): OrganizeOptions {
+		return { tags: [], project: "", status: this.settings.defaultStatus, rating: 0, folder: this.settings.folder };
+	}
+
+	private async askOrganize(file: TFile, explicit: boolean) {
+		const { fm } = await this.readNote(file);
+		if (!isClip(fm)) {
+			if (explicit) new Notice(t("notice.notClip"));
+			return;
+		}
+		const clip = parseClip(fm, "", file.basename, today());
+		new OrganizeModal(this.app, {
+			title: clip.title,
+			url: clip.url,
+			defaultTags: this.settings.defaultTags,
+			statuses: this.settings.statuses,
+			defaultStatus: this.settings.defaultStatus,
+			defaultFolder: this.settings.folder,
+			knownTags: this.knownTags,
+			knownProjects: this.knownProjects,
+			onSubmit: async (opts) => !!(await this.organizeClip(file, opts, {})),
+		}).open();
+	}
+
+	private async organizeAllClips() {
+		const prefix = this.folderPrefix(this.settings.clipperFolder || "Clippings");
+		const candidates = this.app.vault.getMarkdownFiles().filter((f) => !prefix || f.path.startsWith(prefix));
+		const clips: TFile[] = [];
+		for (const f of candidates) if (isClip((await this.readNote(f)).fm)) clips.push(f);
+		if (!clips.length) return void new Notice(t("notice.clipNone", { folder: this.settings.clipperFolder || "/" }));
+
+		const progress = new Notice(t("batch.progress", { i: 0, n: clips.length }), 0);
+		let ok = 0;
+		for (let i = 0; i < clips.length; i++) {
+			progress.setMessage(t("batch.progress", { i: i + 1, n: clips.length }));
+			if (await this.organizeClip(clips[i], this.defaultOrganize(), { quiet: true })) ok++;
+		}
+		progress.hide();
+		new Notice(t("notice.clipBatch", { ok, fail: clips.length - ok }));
+	}
+
+	/**
+	 * Turn a clipped note into an Articledrop note in place: keep the clipped body, add our
+	 * properties and sections, fill gaps from the page, switch to a paper note when the page has a DOI.
+	 */
+	private async organizeClip(file: TFile, o: OrganizeOptions, flags: { quiet?: boolean }): Promise<TFile | null> {
+		const { fm, body } = await this.readNote(file);
+		if (!isClip(fm)) return null;
+		const clip = parseClip(fm, body, file.basename, today());
+
+		const existing = this.findExisting(clip.url);
+		if (existing && existing.path !== file.path) {
+			if (!flags.quiet) new Notice(t("notice.clipDuplicate", { title: existing.basename }), 8000);
+			return null;
+		}
+
+		// Metadata only: the clip already has the text, read from the real browser.
+		let page: ExtractedArticle | null = null;
+		try {
+			page = await fetchArticle(clip.url, false);
+		} catch {
+			/* offline, paywalled or blocked: the clip's own properties are enough */
+		}
+
+		const opts: SaveOptions = {
+			url: clip.url,
+			includeContent: true,
+			tags: uniq([...clip.tags, ...o.tags]),
+			project: o.project,
+			status: o.status,
+			rating: o.rating,
+			folder: o.folder,
+			saved: clip.saved,
+		};
+		const block = clip.body ? `${CONTENT_START}\n${clip.body}\n${CONTENT_END}` : "";
+
+		if (page?.doi && page.scholarly) {
+			try {
+				const paper = await lookupDoi(page.doi, this.scholarConfig());
+				const dup = paper ? this.findExistingPaper(paper) : null;
+				if (dup && dup.path !== file.path) {
+					if (!flags.quiet) new Notice(t("notice.clipDuplicate", { title: dup.basename }), 8000);
+					return null;
+				}
+				if (paper) {
+					const saved = await this.savePaper(paper, { ...this.paperOptionsFrom(opts), downloadPdf: this.settings.downloadPdf }, file, { quiet: true, keepModal: true });
+					if (saved && block) await this.app.vault.process(saved, (text) => `${text.trimEnd()}\n\n## ${t("note.content")}\n\n${block}\n`);
+					if (saved && !flags.quiet) new Notice(t("notice.clipDone", { title: paper.title }));
+					return saved;
+				}
+			} catch {
+				/* save as an article */
+			}
+		}
+
+		const article: ExtractedArticle = {
+			url: clip.url,
+			canonicalUrl: page?.canonicalUrl || clip.url,
+			title: clip.title || page?.title || file.basename,
+			author: clip.author || page?.author || "",
+			site: clip.site || page?.site || hostOf(clip.url),
+			published: clip.published || page?.published || "",
+			description: clip.description || page?.description || "",
+			image: clip.image || page?.image || "",
+			lang: page?.lang || "",
+			type: "article",
+			doi: page?.doi || "",
+			scholarly: false,
+			contentMarkdown: clip.body,
+			textLength: clip.body.length,
+		};
+		const saved = await this.writeArticle(article, opts, file, { quiet: true });
+		if (!flags.quiet) new Notice(t("notice.clipDone", { title: article.title }));
+		return saved;
+	}
+
 	private buildNote(a: ExtractedArticle, opts: SaveOptions): string {
-		const saved = today();
+		const saved = opts.saved || today();
 		const tags = uniq([...splitList(this.settings.defaultTags), ...opts.tags].map(toTag).filter(Boolean));
 		const projects = splitList(opts.project);
 		const citation = buildCitation(a, this.settings.citationStyle, saved);
@@ -1093,4 +1265,12 @@ function findIdentifiers(text: string): string[] {
 		if (!out.includes(url)) out.push(url);
 	}
 	return out;
+}
+
+function hostOf(url: string): string {
+	try {
+		return new URL(url).hostname.replace(/^www\./, "");
+	} catch {
+		return "";
+	}
 }

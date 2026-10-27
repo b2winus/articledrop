@@ -199,6 +199,27 @@ const en = {
 	"set.insertCitationLink": "Citation text + link",
 	"set.bibHeading": "Bibliography heading",
 	"note.bibliography": "Bibliography",
+
+	// web clipper
+	"cmd.organizeClips": "Organize Web Clipper notes",
+	"cmd.organizeNote": "Organize current note as an article",
+	"set.clipper": "Obsidian Web Clipper",
+	"set.clipperIntro": "Clip a page with the Obsidian Web Clipper browser extension and Articledrop turns the new note into an article note: it keeps the clipped text, adds citation, status, rating, memo and quote sections, fills missing details from the page, detects papers by DOI, and moves the note into your folder.",
+	"set.clipperMode": "When a clip arrives",
+	"set.clipperModeDesc": "Ask lets you set tags, project, status and folder for each clip.",
+	"set.clipperAsk": "Ask (tags, project, status, folder)",
+	"set.clipperAuto": "Organize automatically with defaults",
+	"set.clipperOff": "Do nothing",
+	"set.clipperFolder": "Web Clipper folder",
+	"set.clipperFolderDesc": "The folder your Web Clipper template saves to (Clippings by default). Only new notes here are picked up.",
+	"clip.title": "Organize clipped article",
+	"clip.organize": "Organize",
+	"clip.later": "Later",
+	"notice.clipDone": "Organized: {title}",
+	"notice.clipDuplicate": "Already saved as {title}. The clip was left in place.",
+	"notice.clipNone": "No unorganized clips in {folder}.",
+	"notice.clipBatch": "Organized {ok} clip(s). {fail} failed.",
+	"notice.notClip": "This note has no source URL (source or url property).",
 };
 
 const ko: Record<keyof typeof en, string> = {
@@ -380,6 +401,26 @@ const ko: Record<keyof typeof en, string> = {
 	"set.insertCitationLink": "인용문 + 링크",
 	"set.bibHeading": "참고문헌 제목",
 	"note.bibliography": "참고문헌",
+
+	"cmd.organizeClips": "Web Clipper 노트 정리",
+	"cmd.organizeNote": "현재 노트를 아티클로 정리",
+	"set.clipper": "Obsidian Web Clipper",
+	"set.clipperIntro": "브라우저 확장 프로그램 Obsidian Web Clipper로 페이지를 저장하면 Articledrop이 새 노트를 아티클 노트로 정리합니다. 클리핑한 본문은 그대로 두고 인용, 상태, 별점, 메모·인용 칸을 더하고, 빠진 정보는 페이지에서 채우며, DOI가 있으면 논문으로 바꾸고, 저장 폴더로 옮깁니다.",
+	"set.clipperMode": "클리핑이 들어오면",
+	"set.clipperModeDesc": "묻기를 고르면 클리핑마다 태그, 프로젝트, 상태, 폴더를 정할 수 있습니다.",
+	"set.clipperAsk": "묻기 (태그·프로젝트·상태·폴더)",
+	"set.clipperAuto": "기본값으로 자동 정리",
+	"set.clipperOff": "아무것도 하지 않기",
+	"set.clipperFolder": "Web Clipper 폴더",
+	"set.clipperFolderDesc": "Web Clipper 템플릿이 저장하는 폴더 (기본 Clippings). 이 폴더에 새로 생긴 노트만 정리합니다.",
+	"clip.title": "클리핑한 아티클 정리",
+	"clip.organize": "정리",
+	"clip.later": "나중에",
+	"notice.clipDone": "정리했습니다: {title}",
+	"notice.clipDuplicate": "이미 {title}(으)로 저장된 자료입니다. 클리핑은 그대로 두었습니다.",
+	"notice.clipNone": "{folder}에 정리할 클리핑이 없습니다.",
+	"notice.clipBatch": "클리핑 {ok}개를 정리했습니다. 실패 {fail}개.",
+	"notice.notClip": "이 노트에는 원문 주소(source 또는 url 속성)가 없습니다.",
 };
 
 export type StringKey = keyof typeof en;

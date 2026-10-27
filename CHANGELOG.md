@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+- **Obsidian Web Clipper integration.** New notes in the Clipper's folder (`Clippings` by default) are turned into Articledrop notes: the clipped text is kept as the body, Clipper properties are mapped (`source`, `author` wikilinks, `published`, `created`, `description`, `tags`), missing details are filled from the page, citation/status/rating/memo/quote sections are added, and the note is moved into the Articledrop folder. Pages with a DOI become paper notes.
+- Setting *When a clip arrives*: ask (tags, project, status, rating, folder), organize automatically, or do nothing. Only fresh clips made on this device while Obsidian is in front are picked up, so synced notes are not processed twice.
+- Commands: *Organize Web Clipper notes* (all clips in the folder) and *Organize current note as an article*.
+
 ## 0.4.0
 - **Folder field with suggestions** in every save window (article, paper, batch): type a keyword and matching vault folders are listed; a new name creates the folder. The folder settings suggest folders too.
 - **One folder for articles and papers.** The separate paper folder setting is removed; papers are saved in the same folder as articles and told apart by tags (`article` / `paper`) and the `type` property. Notes already in the old paper folder stay where they are and still appear in the index.

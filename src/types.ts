@@ -1,5 +1,6 @@
 export type ContentMode = "ask" | "full" | "metadata";
 export type CitationStyle = "korean" | "chicago" | "sbl" | "apa" | "mla";
+export type ClipperMode = "off" | "ask" | "auto";
 export type InsertMode = "footnote" | "citation" | "link" | "citation-link";
 
 export interface ArticleMeta {
@@ -34,6 +35,7 @@ export interface SaveOptions {
 	status: string;
 	rating: number; // 0 = not rated
 	folder: string; // where the note goes; "" = the default folder
+	saved?: string; // YYYY-MM-DD; defaults to today (a clip keeps its own date)
 }
 
 export interface ArticledropSettings {
@@ -51,6 +53,8 @@ export interface ArticledropSettings {
 	indexFileName: string;
 	language: "auto" | "ko" | "en";
 	insertMode: InsertMode;
+	clipperMode: ClipperMode;
+	clipperFolder: string;
 	bibliographyHeading: string;
 
 	// Papers

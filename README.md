@@ -20,6 +20,17 @@ Save web articles and scholarly papers into Obsidian as research notes — metad
 - **Duplicate detection** — saving a URL you already have opens the existing note (tracking parameters like `utm_*` are ignored).
 - **Template** — the note body is a template with `{{placeholders}}` and conditional sections.
 
+## Works with Obsidian Web Clipper
+
+Clip a page with the [Obsidian Web Clipper](https://obsidian.md/clipper) browser extension as usual. When the new note appears in the Clipper's folder (`Clippings` by default), Articledrop organizes it:
+
+- the clipped text stays as the article body (the Clipper reads the page in your real browser, so it also works for pages that need a login or render with JavaScript);
+- the Clipper's properties (`source`, `author`, `published`, `created`, `description`, `tags`) become Articledrop properties, with missing details (site, image, canonical URL) filled from the page;
+- citation, status, rating, My notes and Key quotes are added, and the note moves into your Articledrop folder;
+- if the page is a journal article with a DOI, it becomes a paper note with full scholarly metadata, keeping the clipped text.
+
+Settings → *When a clip arrives*: **Ask** (default — a small window for tags, project, status, rating and folder), **Organize automatically**, or **Do nothing**. Only notes created in the last two minutes while Obsidian is in front are picked up, so clips that arrive later by sync are left alone. *Organize Web Clipper notes* tidies every clip already in the folder, and *Organize current note as an article* works on any note with a `source` or `url` property.
+
 ## One folder, told apart by tags
 
 Articles and papers are saved in the same folder (`자료` / `Sources` by default). Web articles get the `article` tag and papers the `paper` tag (both configurable), and every note also has `type: article` or `type: paper`, which the index uses for its *Articles* and *Papers* views.
