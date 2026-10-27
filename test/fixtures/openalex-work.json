@@ -1,0 +1,25 @@
+{
+  "id": "https://openalex.org/W2741809807",
+  "doi": "https://doi.org/10.7717/peerj.4375",
+  "title": "The state of OA: a large-scale analysis of the prevalence and impact of Open Access articles",
+  "display_name": "The state of OA: a large-scale analysis of the prevalence and impact of Open Access articles",
+  "publication_year": 2018,
+  "publication_date": "2018-02-13",
+  "language": "en",
+  "type": "article",
+  "authorships": [
+    {"author_position": "first", "author": {"id": "A1", "display_name": "Heather Piwowar"}, "raw_author_name": "Heather Piwowar"},
+    {"author_position": "middle", "author": {"id": "A2", "display_name": "Jason Priem"}},
+    {"author_position": "last", "author": {"id": "A3", "display_name": "Stefanie Haustein"}}
+  ],
+  "primary_location": {
+    "is_oa": true, "landing_page_url": "https://doi.org/10.7717/peerj.4375", "pdf_url": null,
+    "source": {"display_name": "PeerJ", "host_organization_name": "PeerJ, Inc."}
+  },
+  "best_oa_location": {"is_oa": true, "landing_page_url": "https://peerj.com/articles/4375", "pdf_url": "https://peerj.com/articles/4375.pdf"},
+  "biblio": {"volume": "6", "issue": null, "first_page": "e4375", "last_page": "e4375"},
+  "cited_by_count": 1450,
+  "open_access": {"is_oa": true, "oa_status": "gold", "oa_url": "https://peerj.com/articles/4375.pdf"},
+  "keywords": [{"id": "k1", "display_name": "Citation", "score": 0.6}, {"id": "k2", "display_name": "Open access", "score": 0.5}],
+  "abstract_inverted_index": {"Despite": [0], "growing": [1], "interest": [2], "in": [3], "Open": [4], "Access": [5]}
+}

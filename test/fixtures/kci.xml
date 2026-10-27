@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaData>
+  <inputData><apiCode>articleSearch</apiCode><title>이주민 선교</title></inputData>
+  <outputData>
+    <result><total>1</total></result>
+    <record>
+      <journalInfo>
+        <journal-name>선교신학</journal-name>
+        <publisher-name>한국선교신학회</publisher-name>
+        <pub-year>2021</pub-year>
+        <pub-mon>03</pub-mon>
+        <volume>61</volume>
+        <issue>1</issue>
+      </journalInfo>
+      <articleInfo article-id="ART002700001">
+        <title-group>
+          <article-title lang="original">한국 교회의 이주민 선교와 환대의 신학</article-title>
+          <article-title lang="english">Migrant Mission of the Korean Church and a Theology of Hospitality</article-title>
+        </title-group>
+        <author-group>
+          <author english="Hong Gildong">홍길동(장로회신학대학교)</author>
+          <author>김철수(한신대학교)</author>
+        </author-group>
+        <abstract-group>
+          <abstract lang="original">본 연구는 한국 교회의 이주민 선교를 환대의 관점에서 살핀다.</abstract>
+          <abstract lang="english">This study examines...</abstract>
+        </abstract-group>
+        <fpage>101</fpage>
+        <lpage>130</lpage>
+        <doi>10.12345/kms.2021.61.101</doi>
+        <url><![CDATA[https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART002700001]]></url>
+        <citation-count kci="3" wos="0">3</citation-count>
+      </articleInfo>
+    </record>
+  </outputData>
+</MetaData>

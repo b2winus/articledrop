@@ -1,0 +1,10 @@
+{"status":"ok","message":{
+  "DOI":"10.7717/PEERJ.4375","URL":"http://dx.doi.org/10.7717/peerj.4375","type":"journal-article",
+  "title":["The state of OA: a large-scale analysis of the prevalence and impact of Open Access articles"],
+  "author":[{"given":"Heather","family":"Piwowar","sequence":"first"},{"given":"Jason","family":"Priem"},{"given":"Vincent","family":"Larivière"},{"given":"Juan Pablo","family":"Alperin"},{"given":"Lisa","family":"Matthias"},{"given":"Bree","family":"Norlander"},{"given":"Ashley","family":"Farley"},{"given":"Jevin","family":"West"},{"given":"Stefanie","family":"Haustein"}],
+  "container-title":["PeerJ"],"publisher":"PeerJ","volume":"6","page":"e4375",
+  "published-online":{"date-parts":[[2018,2,13]]},"issued":{"date-parts":[[2018,2,13]]},
+  "is-referenced-by-count":1200,
+  "abstract":"<jats:p>Despite growing interest in Open Access (OA) to scholarly literature, there is an unmet need for large-scale, up-to-date, and reproducible studies assessing the prevalence and characteristics of OA.</jats:p>",
+  "subject":["General Medicine"],"language":"en"
+}}
