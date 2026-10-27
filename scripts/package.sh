@@ -20,6 +20,17 @@ NAME="articledrop-${VERSION}"
 npm run build >/dev/null
 npm test >/dev/null
 
+# The Obsidian review bot installs with a plain `npm ci`. Reproduce that in a clean copy
+# so an out-of-date package-lock.json is caught here instead of in review.
+CHECK="$(mktemp -d)"
+tar --exclude=./node_modules -cf - . | tar -xf - -C "$CHECK"
+if ! (cd "$CHECK" && npm ci --no-audit --no-fund --ignore-scripts >/dev/null 2>&1 && npm run build >/dev/null 2>&1); then
+	rm -rf "$CHECK"
+	echo "npm ci failed in a clean copy: run 'npm install' (without --legacy-peer-deps) and try again." >&2
+	exit 1
+fi
+rm -rf "$CHECK"
+
 STAGE="$(mktemp -d)"
 PKG="$STAGE/$NAME"
 mkdir -p "$PKG/1-install/articledrop" "$PKG/2-github-release" "$PKG/3-source"

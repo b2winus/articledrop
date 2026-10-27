@@ -1,6 +1,6 @@
 {
 	"name": "articledrop",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"description": "Collect web articles and scholarly papers in Obsidian and cite them while writing.",
 	"main": "main.js",
 	"scripts": {

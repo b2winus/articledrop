@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+- Fixed the review bot's install failure: `package-lock.json` was generated with `--legacy-peer-deps` and lacked peer packages, so a plain `npm ci` refused to install. Regenerated it with a normal `npm install`; `npm ci`, build, tests and lint all pass from a clean copy.
+- Packaging now runs that clean `npm ci` check before making the zip.
+
 ## 0.3.2
 - Uses only public Obsidian APIs: tag suggestions read each note's cache (`getAllTags`) instead of the undocumented `metadataCache.getTags()`; file-name checks use the Vault API instead of the adapter.
 - Converting a shared-link note now rewrites it with `vault.process` (atomic) instead of `vault.modify`.
