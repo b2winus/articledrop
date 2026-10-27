@@ -1,4 +1,4 @@
-import { Editor, MarkdownFileInfo, MarkdownView, Notice, Plugin, TFile, TFolder, normalizePath, stringifyYaml } from "obsidian";
+import { Editor, MarkdownFileInfo, MarkdownView, Notice, Plugin, TFile, TFolder, getAllTags, normalizePath, stringifyYaml } from "obsidian";
 import { fetchArticle } from "./fetcher";
 import { findUrls, isHttpUrl, normalizeUrl } from "./extract";
 import { setLanguage, t } from "./i18n";
@@ -234,16 +234,19 @@ export default class ArticledropPlugin extends Plugin {
 	}
 
 	private knownTags = (): string[] => {
-		// getTags() exists at runtime but is not in the public typings.
-		const mc = this.app.metadataCache as unknown as { getTags?: () => Record<string, number> };
-		const tags = Object.keys(mc.getTags?.() ?? {}).map((s) => s.replace(/^#/, ""));
+		// Public API only: collect tags from every note's cache.
+		const tags: string[] = [];
+		for (const f of this.app.vault.getMarkdownFiles()) {
+			const cache = this.app.metadataCache.getFileCache(f);
+			if (cache) for (const tag of getAllTags(cache) ?? []) tags.push(tag.replace(/^#/, ""));
+		}
 		return uniq([...splitList(this.settings.defaultTags), ...tags]).sort();
 	};
 
 	private knownProjects = (): string[] => {
 		const out: string[] = [];
 		for (const f of this.articleFiles()) {
-			const p = this.app.metadataCache.getFileCache(f)?.frontmatter?.project;
+			const p: unknown = this.app.metadataCache.getFileCache(f)?.frontmatter?.project;
 			if (Array.isArray(p)) out.push(...p.map(String));
 			else if (typeof p === "string" && p) out.push(p);
 		}
@@ -418,8 +421,8 @@ export default class ArticledropPlugin extends Plugin {
 
 		if (target) {
 			this.ownWrites.add(target.path);
-			await this.app.vault.modify(target, text);
-			const desired = await this.uniquePath(this.fileNameFor(article), target.path);
+			await this.app.vault.process(target, () => text);
+			const desired = this.uniquePath(this.fileNameFor(article), target.path);
 			if (desired !== target.path) {
 				await this.ensureFolder();
 				await this.app.fileManager.renameFile(target, desired);
@@ -427,7 +430,7 @@ export default class ArticledropPlugin extends Plugin {
 			file = target;
 		} else {
 			await this.ensureFolder();
-			const path = await this.uniquePath(this.fileNameFor(article));
+			const path = this.uniquePath(this.fileNameFor(article));
 			this.ownWrites.add(path);
 			file = await this.app.vault.create(path, text);
 		}
@@ -496,11 +499,11 @@ export default class ArticledropPlugin extends Plugin {
 		return sanitizeFileName(name);
 	}
 
-	private async uniquePath(baseName: string, currentPath?: string, folder: string = this.settings.folder, ext = "md"): Promise<string> {
+	private uniquePath(baseName: string, currentPath?: string, folder: string = this.settings.folder, ext = "md"): string {
 		const prefix = this.folderPrefix(folder);
 		let path = normalizePath(`${prefix}${baseName}.${ext}`);
 		let n = 2;
-		while (path !== currentPath && (await this.app.vault.adapter.exists(path))) {
+		while (path !== currentPath && this.app.vault.getAbstractFileByPath(path)) {
 			path = normalizePath(`${prefix}${baseName} (${n++}).${ext}`);
 		}
 		return path;
@@ -712,12 +715,14 @@ export default class ArticledropPlugin extends Plugin {
 	private async openIndex() {
 		await this.ensureFolder();
 		const path = normalizePath(`${this.folderPrefix()}${sanitizeFileName(this.settings.indexFileName)}.base`);
-		let file = this.app.vault.getAbstractFileByPath(path);
-		if (!(file instanceof TFile)) {
+		const existing = this.app.vault.getAbstractFileByPath(path);
+		let file: TFile;
+		if (existing instanceof TFile) file = existing;
+		else {
 			file = await this.app.vault.create(path, this.indexYaml());
 			new Notice(t("notice.indexCreated"));
 		}
-		await this.app.workspace.getLeaf(false).openFile(file as TFile);
+		await this.app.workspace.getLeaf(false).openFile(file);
 	}
 
 	private indexYaml(): string {
@@ -896,12 +901,12 @@ export default class ArticledropPlugin extends Plugin {
 		await this.ensureFolder(this.settings.paperFolder);
 		if (target) {
 			this.ownWrites.add(target.path);
-			await this.app.vault.modify(target, text);
-			const desired = await this.uniquePath(baseName, target.path, this.settings.paperFolder);
+			await this.app.vault.process(target, () => text);
+			const desired = this.uniquePath(baseName, target.path, this.settings.paperFolder);
 			if (desired !== target.path) await this.app.fileManager.renameFile(target, desired);
 			file = target;
 		} else {
-			const path = await this.uniquePath(baseName, undefined, this.settings.paperFolder);
+			const path = this.uniquePath(baseName, undefined, this.settings.paperFolder);
 			this.ownWrites.add(path);
 			file = await this.app.vault.create(path, text);
 		}
@@ -921,7 +926,7 @@ export default class ArticledropPlugin extends Plugin {
 			if (!data) throw new Error("not a PDF");
 			await this.ensureFolder(this.settings.pdfFolder);
 			const name = sanitizeFileName(citeKey(paper) || paper.title, 80);
-			const path = await this.uniquePath(name, undefined, this.settings.pdfFolder, "pdf");
+			const path = this.uniquePath(name, undefined, this.settings.pdfFolder, "pdf");
 			const file = await this.app.vault.createBinary(path, data);
 			return `[[${file.path}|PDF]]`;
 		} catch {
@@ -1005,7 +1010,8 @@ export default class ArticledropPlugin extends Plugin {
 
 	private paperFromFrontmatter(file: TFile): Paper {
 		const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-		const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : []);
+		const one = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+		const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(one).filter(Boolean) : one(v) ? [one(v)] : []);
 		return {
 			title: String(fm.title ?? file.basename),
 			authors: list(fm.authors ?? fm.author).map((name) => ({ name })),
@@ -1059,7 +1065,7 @@ export default class ArticledropPlugin extends Plugin {
 function findIdentifiers(text: string): string[] {
 	const out = findUrls(text);
 	const seenDoi = new Set(out.map((u) => normalizeDoi(u)).filter(Boolean));
-	const doiRe = /(?:^|[\s(\[<"'])(?:doi:\s*)?(10\.\d{4,9}\/[^\s"'<>\])]+)/gi;
+	const doiRe = /(?:^|[\s([<"'])(?:doi:\s*)?(10\.\d{4,9}\/[^\s"'<>\])]+)/gi;
 	let m: RegExpExecArray | null;
 	while ((m = doiRe.exec(text))) {
 		const doi = normalizeDoi(m[1]);

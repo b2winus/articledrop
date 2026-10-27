@@ -111,15 +111,16 @@ export async function lookupDoi(doi: string, cfg: ScholarConfig): Promise<Paper 
 		getJson(`https://api.crossref.org/works/${enc}${mail}`, cfg),
 		getJson(`https://api.openalex.org/works/doi:${doi}?${openAlexParams(cfg).slice(1)}`, cfg),
 	]);
-	const crossref = cr.status === "fulfilled" && cr.value?.message ? parseCrossrefWork(cr.value.message as Record<string, unknown>) : null;
+	const crossref = cr.status === "fulfilled" && cr.value?.message ? parseCrossrefWork(cr.value.message) : null;
 	const openalex = oa.status === "fulfilled" && oa.value ? parseOpenAlexWork(oa.value) : null;
 	if (!crossref && !openalex) {
-		const reason = [cr, oa].find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-		if (reason) throw reason.reason;
+		for (const r of [cr, oa]) {
+			if (r.status === "rejected") throw r.reason instanceof Error ? r.reason : new ScholarError(String(r.reason));
+		}
 		return null;
 	}
 	// Crossref is authoritative for bibliographic fields; OpenAlex adds abstract, OA PDF, keywords.
-	if (!crossref) return openalex as Paper;
+	if (!crossref) return openalex;
 	const merged = mergePapers(crossref, openalex);
 	// OpenAlex keywords describe the paper; Crossref "subjects" describe the journal.
 	if (openalex?.keywords.length) merged.keywords = openalex.keywords;

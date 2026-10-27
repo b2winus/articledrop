@@ -205,7 +205,7 @@ export class PaperSaveModal extends Modal {
 			});
 
 		new Setting(contentEl).setName(t("modal.status")).addDropdown((dd) => {
-			this.ctx.statuses.forEach((s) => dd.addOption(s, s));
+			for (const st of this.ctx.statuses) dd.addOption(st, st);
 			dd.setValue(opts.status).onChange((v) => (opts.status = v));
 		});
 
@@ -261,7 +261,7 @@ export class IdentifierModal extends Modal {
 			this.close();
 			this.onSubmit(value.trim());
 		};
-		new Setting(this.contentEl).setName("DOI / arXiv").addText((tx) => {
+		new Setting(this.contentEl).setName(t("paper.idLabel")).addText((tx) => {
 			tx.setPlaceholder(t("paper.idPlaceholder")).onChange((v) => (value = v));
 			tx.inputEl.addClass("articledrop-url");
 			window.setTimeout(() => tx.inputEl.focus(), 10);

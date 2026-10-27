@@ -91,7 +91,7 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
 export function sanitizeFileName(name: string, max = 120): string {
 	let s = name
 		.replace(/[\\/:*?"<>|#^[\]]/g, " ")
-		.replace(/[\u0000-\u001f]/g, "")
+		.replace(/\p{Cc}/gu, "")
 		.replace(/\s+/g, " ")
 		.trim()
 		.replace(/^\.+/, "");

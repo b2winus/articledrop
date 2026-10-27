@@ -64,7 +64,9 @@ export function detectIdentifier(input: string): Identifier {
 function str(v: unknown): string {
 	if (v === null || v === undefined) return "";
 	if (Array.isArray(v)) return str(v[0]);
-	return String(v).trim();
+	if (typeof v === "string") return v.trim();
+	if (typeof v === "number" || typeof v === "boolean") return String(v);
+	return "";
 }
 
 /** Strip HTML/JATS tags and collapse whitespace, keeping paragraph breaks. */
@@ -127,89 +129,129 @@ function emptyPaper(source: PaperSource): Paper {
 }
 
 // ---------------------------------------------------------------------------
+// Safe access to untyped JSON (API responses are `unknown` until checked)
+// ---------------------------------------------------------------------------
+
+export type Json = Record<string, unknown>;
+
+function isObj(v: unknown): v is Json {
+	return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Read a nested property: get(x, "a", "b") ≈ x?.a?.b */
+function get(v: unknown, ...path: (string | number)[]): unknown {
+	let cur: unknown = v;
+	for (const key of path) {
+		if (typeof key === "number") cur = Array.isArray(cur) ? (cur[key] as unknown) : undefined;
+		else cur = isObj(cur) ? cur[key] : undefined;
+		if (cur === undefined || cur === null) return undefined;
+	}
+	return cur;
+}
+
+function list(v: unknown): unknown[] {
+	return Array.isArray(v) ? (v as unknown[]) : [];
+}
+
+function num(v: unknown): number | null {
+	return typeof v === "number" && isFinite(v) ? v : null;
+}
+
+function invertedIndex(v: unknown): Record<string, number[]> | null {
+	if (!isObj(v)) return null;
+	const out: Record<string, number[]> = {};
+	for (const [word, positions] of Object.entries(v)) out[word] = list(positions).filter((n): n is number => typeof n === "number");
+	return out;
+}
+
+// ---------------------------------------------------------------------------
 // OpenAlex
 // ---------------------------------------------------------------------------
 
-type J = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-export function parseOpenAlexWork(w: J): Paper {
+export function parseOpenAlexWork(w: unknown): Paper {
 	const p = emptyPaper("openalex");
-	p.title = stripMarkup(str(w.display_name ?? w.title));
-	p.authors = (w.authorships ?? [])
-		.map((a: J) => splitName(str(a?.author?.display_name ?? a?.raw_author_name)))
-		.filter((a: PaperAuthor) => a.name);
-	p.year = str(w.publication_year);
-	p.published = str(w.publication_date);
-	const loc = w.primary_location ?? {};
-	p.journal = str(loc.source?.display_name);
-	p.publisher = str(loc.source?.host_organization_name);
-	p.volume = str(w.biblio?.volume);
-	p.issue = str(w.biblio?.issue);
-	p.pages = pages(str(w.biblio?.first_page), str(w.biblio?.last_page));
-	p.doi = normalizeDoi(str(w.doi));
-	p.url = p.doi ? `https://doi.org/${p.doi}` : str(loc.landing_page_url) || str(w.id);
-	p.pdfUrl = str(w.best_oa_location?.pdf_url) || str(loc.pdf_url) || "";
-	p.abstract = reconstructAbstract(w.abstract_inverted_index);
-	p.keywords = (w.keywords ?? []).map((k: J) => str(k.display_name)).filter(Boolean).slice(0, 8);
-	p.citedBy = typeof w.cited_by_count === "number" ? w.cited_by_count : null;
-	p.kind = str(w.type);
-	p.lang = str(w.language);
-	const ax = /arxiv\.org\/abs\/([^\s?#]+)/i.exec(str(loc.landing_page_url));
+	p.title = stripMarkup(str(get(w, "display_name") ?? get(w, "title")));
+	p.authors = list(get(w, "authorships"))
+		.map((a) => splitName(str(get(a, "author", "display_name") ?? get(a, "raw_author_name"))))
+		.filter((a) => a.name);
+	p.year = str(get(w, "publication_year"));
+	p.published = str(get(w, "publication_date"));
+	const loc = get(w, "primary_location");
+	p.journal = str(get(loc, "source", "display_name"));
+	p.publisher = str(get(loc, "source", "host_organization_name"));
+	p.volume = str(get(w, "biblio", "volume"));
+	p.issue = str(get(w, "biblio", "issue"));
+	p.pages = pages(str(get(w, "biblio", "first_page")), str(get(w, "biblio", "last_page")));
+	p.doi = normalizeDoi(str(get(w, "doi")));
+	p.url = p.doi ? `https://doi.org/${p.doi}` : str(get(loc, "landing_page_url")) || str(get(w, "id"));
+	p.pdfUrl = str(get(w, "best_oa_location", "pdf_url")) || str(get(loc, "pdf_url"));
+	p.abstract = reconstructAbstract(invertedIndex(get(w, "abstract_inverted_index")));
+	p.keywords = list(get(w, "keywords"))
+		.map((k) => str(get(k, "display_name")))
+		.filter(Boolean)
+		.slice(0, 8);
+	p.citedBy = num(get(w, "cited_by_count"));
+	p.kind = str(get(w, "type"));
+	p.lang = str(get(w, "language"));
+	const ax = /arxiv\.org\/abs\/([^\s?#]+)/i.exec(str(get(loc, "landing_page_url")));
 	if (ax) p.arxivId = parseArxivId(ax[1]) || ax[1];
 	if (!p.journal && p.arxivId) p.journal = "arXiv";
 	return p;
 }
 
-export function parseOpenAlexSearch(json: J): Paper[] {
-	return (json.results ?? []).map(parseOpenAlexWork).filter((p: Paper) => p.title);
+export function parseOpenAlexSearch(json: unknown): Paper[] {
+	return list(get(json, "results"))
+		.map(parseOpenAlexWork)
+		.filter((p) => p.title);
 }
 
 // ---------------------------------------------------------------------------
 // Crossref
 // ---------------------------------------------------------------------------
 
-function crossrefDate(m: J): string {
-	const parts: number[] | undefined =
-		m["published-print"]?.["date-parts"]?.[0] ??
-		m["published-online"]?.["date-parts"]?.[0] ??
-		m.issued?.["date-parts"]?.[0] ??
-		m.published?.["date-parts"]?.[0];
-	if (!parts || !parts[0]) return "";
+function crossrefDate(m: unknown): string {
+	const raw = ["published-print", "published-online", "issued", "published"]
+		.map((k) => get(m, k, "date-parts", 0))
+		.find((v) => Array.isArray(v) && typeof v[0] === "number");
+	const parts = list(raw).filter((n): n is number => typeof n === "number");
+	if (!parts[0]) return "";
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return [String(parts[0]), parts[1] ? pad(parts[1]) : "", parts[2] ? pad(parts[2]) : ""].filter(Boolean).join("-");
 }
 
-export function parseCrossrefWork(m: J): Paper {
+export function parseCrossrefWork(m: unknown): Paper {
 	const p = emptyPaper("crossref");
-	p.title = stripMarkup([str(m.title), str(m.subtitle)].filter(Boolean).join(": "));
-	p.authors = (m.author ?? [])
-		.map((a: J): PaperAuthor => {
-			const given = str(a.given);
-			const family = str(a.family);
-			const name = str(a.name) || [given, family].filter(Boolean).join(" ");
+	p.title = stripMarkup([str(get(m, "title")), str(get(m, "subtitle"))].filter(Boolean).join(": "));
+	p.authors = list(get(m, "author"))
+		.map((a): PaperAuthor => {
+			const given = str(get(a, "given"));
+			const family = str(get(a, "family"));
+			const name = str(get(a, "name")) || [given, family].filter(Boolean).join(" ");
 			return { name, given: given || undefined, family: family || undefined };
 		})
-		.filter((a: PaperAuthor) => a.name);
+		.filter((a) => a.name);
 	p.published = crossrefDate(m);
 	p.year = p.published.slice(0, 4);
-	p.journal = stripMarkup(str(m["container-title"]));
-	p.publisher = str(m.publisher);
-	p.volume = str(m.volume);
-	p.issue = str(m.issue);
-	p.pages = str(m.page).replace(/[–—]/g, "-");
-	p.doi = normalizeDoi(str(m.DOI));
-	p.url = p.doi ? `https://doi.org/${p.doi}` : str(m.URL);
-	p.abstract = stripMarkup(str(m.abstract));
-	p.keywords = (m.subject ?? []).map(str).filter(Boolean).slice(0, 8);
-	p.citedBy = typeof m["is-referenced-by-count"] === "number" ? m["is-referenced-by-count"] : null;
-	p.kind = str(m.type);
-	p.lang = str(m.language);
+	p.journal = stripMarkup(str(get(m, "container-title")));
+	p.publisher = str(get(m, "publisher"));
+	p.volume = str(get(m, "volume"));
+	p.issue = str(get(m, "issue"));
+	p.pages = str(get(m, "page")).replace(/[–—]/g, "-");
+	p.doi = normalizeDoi(str(get(m, "DOI")));
+	p.url = p.doi ? `https://doi.org/${p.doi}` : str(get(m, "URL"));
+	p.abstract = stripMarkup(str(get(m, "abstract")));
+	p.keywords = list(get(m, "subject")).map(str).filter(Boolean).slice(0, 8);
+	p.citedBy = num(get(m, "is-referenced-by-count"));
+	p.kind = str(get(m, "type"));
+	p.lang = str(get(m, "language"));
 	// Crossref PDF links are often paywalled; open-access PDFs come from OpenAlex/arXiv.
 	return p;
 }
 
-export function parseCrossrefSearch(json: J): Paper[] {
-	return (json.message?.items ?? []).map(parseCrossrefWork).filter((p: Paper) => p.title);
+export function parseCrossrefSearch(json: unknown): Paper[] {
+	return list(get(json, "message", "items"))
+		.map(parseCrossrefWork)
+		.filter((p) => p.title);
 }
 
 // ---------------------------------------------------------------------------

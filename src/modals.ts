@@ -110,7 +110,7 @@ export class SaveModal extends Modal {
 			});
 
 		new Setting(contentEl).setName(t("modal.status")).addDropdown((dd) => {
-			this.ctx.statuses.forEach((s) => dd.addOption(s, s));
+			for (const st of this.ctx.statuses) dd.addOption(st, st);
 			dd.setValue(this.opts.status).onChange((v) => (this.opts.status = v));
 		});
 
@@ -237,7 +237,7 @@ export class BatchModal extends Modal {
 
 		let status = this.ctx.defaultStatus;
 		new Setting(contentEl).setName(t("modal.status")).addDropdown((dd) => {
-			this.ctx.statuses.forEach((s) => dd.addOption(s, s));
+			for (const st of this.ctx.statuses) dd.addOption(st, st);
 			dd.setValue(status).onChange((v) => (status = v));
 		});
 

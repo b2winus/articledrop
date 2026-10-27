@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.2
+- Uses only public Obsidian APIs: tag suggestions read each note's cache (`getAllTags`) instead of the undocumented `metadataCache.getTags()`; file-name checks use the Vault API instead of the adapter.
+- Converting a shared-link note now rewrites it with `vault.process` (atomic) instead of `vault.modify`.
+- Settings: removed the top-level "General" heading, per Obsidian's settings guidelines.
+- Manifest: added author and funding links.
+- Build tooling: esbuild 0.25 (dev-server advisory GHSA-67mh-4wv8-2f99), pinned `obsidian` typings, aligned ESLint packages.
+
+## 0.3.1
+- Security: updated `@mozilla/readability` to 0.6.0 (advisory GHSA-3p6v-hrg8-8qj7).
+- Settings now use Obsidian's declarative settings API, so they appear in settings search on Obsidian 1.13+; older versions keep the previous settings screen.
+- Paper API responses are validated field by field instead of being trusted as `any`.
+- Links and images in saved articles are made absolute without inserting a `<base>` element.
+- Replaced the `builtin-modules` build dependency with Node's built-in `builtinModules`.
+- Code cleanup for the Obsidian review checks (unsafe types, unnecessary assertions, a `TFile` cast, regular-expression warnings, button handlers returning promises).
+- Added `npm run lint` using `eslint-plugin-obsidianmd`; packaging runs it first.
+
 ## 0.3.0
 - Rating (★1–5) for articles and papers: set when saving or with *Rate current article or paper*; shown in the index.
 - SBL (2nd ed.) citation style for web articles and journal articles (`Journal 125.2 (2006): 287–303`).

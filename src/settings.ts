@@ -1,8 +1,8 @@
-import { App, PluginSettingTab, Setting, normalizePath } from "obsidian";
+import { App, PluginSettingTab, Setting, SettingDefinitionItem, SettingGroupItem, normalizePath } from "obsidian";
 import type ArticledropPlugin from "./main";
 import { lang, t } from "./i18n";
 import { splitList } from "./render";
-import type { ArticledropSettings, CitationStyle, ContentMode, InsertMode, PaperSource } from "./types";
+import type { ArticledropSettings } from "./types";
 
 export function defaultBodyTemplate(): string {
 	return [
@@ -80,277 +80,264 @@ export function defaultSettings(): ArticledropSettings {
 	};
 }
 
+type Key = Extract<keyof ArticledropSettings, string>;
+
+/** One description of every setting, rendered declaratively (Obsidian 1.13+) or imperatively (older). */
+type Spec =
+	| { kind: "heading"; name: string }
+	| { kind: "info"; name: string; desc?: string }
+	| { kind: "text"; key: Key; name: string; desc?: string; secret?: boolean }
+	| { kind: "toggle"; key: Key; name: string; desc?: string }
+	| { kind: "dropdown"; key: Key; name: string; desc?: string; options: Record<string, string> }
+	| { kind: "template"; key: "bodyTemplate" | "paperTemplate"; name: string; desc: string; rows: number; reset: () => string };
+
 export class ArticledropSettingTab extends PluginSettingTab {
 	constructor(app: App, private plugin: ArticledropPlugin) {
 		super(app, plugin);
 	}
 
-	display(): void {
-		const { containerEl } = this;
+	private specs(): Spec[] {
+		return [
+			{ kind: "text", key: "folder", name: t("set.folder"), desc: t("set.folderDesc") },
+			{ kind: "text", key: "fileNameTemplate", name: t("set.fileName"), desc: t("set.fileNameDesc") },
+			{
+				kind: "dropdown",
+				key: "contentMode",
+				name: t("set.contentMode"),
+				desc: t("set.contentModeDesc"),
+				options: { ask: t("set.contentAsk"), full: t("set.contentFull"), metadata: t("set.contentMeta") },
+			},
+			{ kind: "toggle", key: "openAfterSave", name: t("set.openAfter") },
+			{
+				kind: "dropdown",
+				key: "language",
+				name: t("set.language"),
+				desc: t("set.languageDesc"),
+				options: { auto: t("set.langAuto"), ko: "한국어", en: "English" },
+			},
+
+			{ kind: "heading", name: t("set.organize") },
+			{ kind: "text", key: "defaultTags", name: t("set.defaultTags"), desc: t("set.defaultTagsDesc") },
+			{ kind: "text", key: "statuses", name: t("set.statuses"), desc: t("set.statusesDesc") },
+			{ kind: "text", key: "defaultStatus", name: t("set.defaultStatus") },
+
+			{ kind: "heading", name: t("set.citation") },
+			{
+				kind: "dropdown",
+				key: "citationStyle",
+				name: t("set.citationStyle"),
+				options: { korean: t("set.citationKorean"), chicago: "Chicago", sbl: "SBL (2nd ed.)", apa: "APA 7", mla: "MLA 9" },
+			},
+
+			{ kind: "heading", name: t("set.template") },
+			{ kind: "template", key: "bodyTemplate", name: t("set.bodyTemplate"), desc: t("set.bodyTemplateDesc"), rows: 16, reset: defaultBodyTemplate },
+
+			{ kind: "heading", name: t("set.collect") },
+			{ kind: "toggle", key: "batchLinkBack", name: t("set.batchLinkBack"), desc: t("set.batchLinkBackDesc") },
+			{ kind: "toggle", key: "convertSharedNotes", name: t("set.convertShared"), desc: t("set.convertSharedDesc") },
+			{ kind: "info", name: t("set.mobile"), desc: t("set.mobileDesc") },
+
+			{ kind: "heading", name: t("set.papers") },
+			{ kind: "info", name: t("paper.hint") },
+			{ kind: "text", key: "paperFolder", name: t("set.paperFolder") },
+			{ kind: "text", key: "paperFileNameTemplate", name: t("set.paperFileName"), desc: t("set.paperFileNameDesc") },
+			{ kind: "text", key: "defaultPaperTags", name: t("set.defaultPaperTags") },
+			{
+				kind: "dropdown",
+				key: "paperSource",
+				name: t("set.paperSource"),
+				options: { openalex: "OpenAlex", crossref: "Crossref", arxiv: "arXiv", kci: "KCI" },
+			},
+			{ kind: "toggle", key: "downloadPdf", name: t("set.downloadPdf") },
+			{ kind: "text", key: "pdfFolder", name: t("set.pdfFolder") },
+			{ kind: "text", key: "contactEmail", name: t("set.email"), desc: t("set.emailDesc") },
+			{ kind: "text", key: "openAlexKey", name: t("set.openAlexKey"), desc: t("set.openAlexKeyDesc"), secret: true },
+			{ kind: "text", key: "kciKey", name: t("set.kciKey"), desc: t("set.kciKeyDesc"), secret: true },
+			{ kind: "template", key: "paperTemplate", name: t("set.paperTemplate"), desc: t("set.paperTemplateDesc"), rows: 14, reset: defaultPaperTemplate },
+
+			{ kind: "heading", name: t("set.writing") },
+			{
+				kind: "dropdown",
+				key: "insertMode",
+				name: t("set.insertMode"),
+				desc: t("set.insertModeDesc"),
+				options: {
+					footnote: t("set.insertFootnote"),
+					citation: t("set.insertCitation"),
+					link: t("set.insertLink"),
+					"citation-link": t("set.insertCitationLink"),
+				},
+			},
+			{ kind: "text", key: "bibliographyHeading", name: t("set.bibHeading") },
+
+			{ kind: "heading", name: t("set.index") },
+			{ kind: "text", key: "indexFileName", name: t("set.indexName"), desc: t("set.indexNameDesc") },
+		];
+	}
+
+	// --- values -----------------------------------------------------------------
+
+	getControlValue(key: string): unknown {
 		const s = this.plugin.settings;
-		const save = () => this.plugin.saveSettings();
-		containerEl.empty();
+		if (key === "statuses") return s.statuses.join(", ");
+		return (s as unknown as Record<string, unknown>)[key];
+	}
 
-		// General ------------------------------------------------------------
-		new Setting(containerEl)
-			.setName(t("set.folder"))
-			.setDesc(t("set.folderDesc"))
-			.addText((tx) =>
-				tx.setValue(s.folder).onChange(async (v) => {
-					s.folder = normalizePath(v.trim() || "/");
-					await save();
-				})
-			);
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const s = this.plugin.settings;
+		const text = typeof value === "string" ? value.trim() : "";
+		const defaults = defaultSettings();
+		switch (key) {
+			case "folder":
+			case "paperFolder":
+			case "pdfFolder":
+				s[key] = normalizePath(text || defaults[key]);
+				break;
+			case "statuses": {
+				const items = splitList(text);
+				if (items.length) s.statuses = items;
+				if (!s.statuses.includes(s.defaultStatus)) s.defaultStatus = s.statuses[0];
+				break;
+			}
+			case "fileNameTemplate":
+			case "paperFileNameTemplate":
+			case "indexFileName":
+			case "bibliographyHeading":
+				s[key] = text || defaults[key];
+				break;
+			case "bodyTemplate":
+			case "paperTemplate":
+				s[key] = typeof value === "string" ? value : defaults[key];
+				break;
+			default: {
+				const record = s as unknown as Record<string, unknown>;
+				const current = record[key];
+				if (typeof current === "boolean") record[key] = value === true;
+				else if (typeof current === "string") record[key] = typeof value === "string" ? value.trim() : current;
+			}
+		}
+		await this.plugin.saveSettings();
+	}
 
-		new Setting(containerEl)
-			.setName(t("set.fileName"))
-			.setDesc(t("set.fileNameDesc"))
-			.addText((tx) =>
-				tx.setValue(s.fileNameTemplate).onChange(async (v) => {
-					s.fileNameTemplate = v.trim() || "{{title}}";
-					await save();
-				})
-			);
+	private textValue(key: string): string {
+		const v = this.getControlValue(key);
+		return typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
+	}
 
-		new Setting(containerEl)
-			.setName(t("set.contentMode"))
-			.setDesc(t("set.contentModeDesc"))
-			.addDropdown((dd) =>
-				dd
-					.addOption("ask", t("set.contentAsk"))
-					.addOption("full", t("set.contentFull"))
-					.addOption("metadata", t("set.contentMeta"))
-					.setValue(s.contentMode)
-					.onChange(async (v) => {
-						s.contentMode = v as ContentMode;
-						await save();
-					})
-			);
+	// --- shared imperative pieces -------------------------------------------------
 
-		new Setting(containerEl).setName(t("set.openAfter")).addToggle((tg) =>
-			tg.setValue(s.openAfterSave).onChange(async (v) => {
-				s.openAfterSave = v;
-				await save();
-			})
-		);
-
-		new Setting(containerEl)
-			.setName(t("set.language"))
-			.setDesc(t("set.languageDesc"))
-			.addDropdown((dd) =>
-				dd
-					.addOption("auto", t("set.langAuto"))
-					.addOption("ko", "한국어")
-					.addOption("en", "English")
-					.setValue(s.language)
-					.onChange(async (v) => {
-						s.language = v as ArticledropSettings["language"];
-						await save();
-					})
-			);
-
-		// Organize -----------------------------------------------------------
-		new Setting(containerEl).setName(t("set.organize")).setHeading();
-
-		new Setting(containerEl)
-			.setName(t("set.defaultTags"))
-			.setDesc(t("set.defaultTagsDesc"))
-			.addText((tx) =>
-				tx.setValue(s.defaultTags).onChange(async (v) => {
-					s.defaultTags = v;
-					await save();
-				})
-			);
-
-		new Setting(containerEl)
-			.setName(t("set.statuses"))
-			.setDesc(t("set.statusesDesc"))
-			.addText((tx) =>
-				tx.setValue(s.statuses.join(", ")).onChange(async (v) => {
-					const list = splitList(v);
-					if (list.length) s.statuses = list;
-					if (!s.statuses.includes(s.defaultStatus)) s.defaultStatus = s.statuses[0];
-					await save();
-				})
-			);
-
-		new Setting(containerEl).setName(t("set.defaultStatus")).addText((tx) =>
-			tx.setValue(s.defaultStatus).onChange(async (v) => {
-				s.defaultStatus = v.trim();
-				await save();
-			})
-		);
-
-		// Citation -----------------------------------------------------------
-		new Setting(containerEl).setName(t("set.citation")).setHeading();
-
-		new Setting(containerEl).setName(t("set.citationStyle")).addDropdown((dd) =>
-			dd
-				.addOption("korean", t("set.citationKorean"))
-				.addOption("chicago", "Chicago")
-				.addOption("sbl", "SBL (2nd ed.)")
-				.addOption("apa", "APA 7")
-				.addOption("mla", "MLA 9")
-				.setValue(s.citationStyle)
-				.onChange(async (v) => {
-					s.citationStyle = v as CitationStyle;
-					await save();
-				})
-		);
-
-		// Template -----------------------------------------------------------
-		new Setting(containerEl).setName(t("set.template")).setHeading();
-
-		const tplSetting = new Setting(containerEl)
-			.setName(t("set.bodyTemplate"))
-			.setDesc(t("set.bodyTemplateDesc"));
-		tplSetting.settingEl.addClass("articledrop-template-setting");
-		tplSetting.addTextArea((ta) => {
-			ta.inputEl.rows = 16;
+	private renderTemplate(setting: Setting, spec: Extract<Spec, { kind: "template" }>) {
+		setting.setName(spec.name).setDesc(spec.desc);
+		setting.settingEl.addClass("articledrop-template-setting");
+		setting.addTextArea((ta) => {
+			ta.inputEl.rows = spec.rows;
 			ta.inputEl.addClass("articledrop-template");
-			ta.setValue(s.bodyTemplate).onChange(async (v) => {
-				s.bodyTemplate = v;
-				await save();
-			});
+			ta.setValue(this.plugin.settings[spec.key]).onChange((v) => void this.setControlValue(spec.key, v));
+			setting.addExtraButton((b) =>
+				b
+					.setIcon("rotate-ccw")
+					.setTooltip(t("set.resetTemplate"))
+					.onClick(() => {
+						const fresh = spec.reset();
+						ta.setValue(fresh);
+						void this.setControlValue(spec.key, fresh);
+					})
+			);
 		});
-		tplSetting.addExtraButton((b) =>
-			b
-				.setIcon("rotate-ccw")
-				.setTooltip(t("set.resetTemplate"))
-				.onClick(async () => {
-					s.bodyTemplate = defaultBodyTemplate();
-					await save();
-					this.display();
-				})
-		);
+	}
 
-		// Collecting ---------------------------------------------------------
-		new Setting(containerEl).setName(t("set.collect")).setHeading();
+	private renderSecret(setting: Setting, spec: Extract<Spec, { kind: "text" }>) {
+		setting.setName(spec.name);
+		if (spec.desc) setting.setDesc(spec.desc);
+		setting.addText((tx) => {
+			tx.inputEl.type = "password";
+			tx.setValue(this.textValue(spec.key)).onChange((v) => void this.setControlValue(spec.key, v));
+		});
+	}
 
-		new Setting(containerEl)
-			.setName(t("set.batchLinkBack"))
-			.setDesc(t("set.batchLinkBackDesc"))
-			.addToggle((tg) =>
-				tg.setValue(s.batchLinkBack).onChange(async (v) => {
-					s.batchLinkBack = v;
-					await save();
-				})
-			);
+	// --- Obsidian 1.13+: declarative settings (searchable) ------------------------
 
-		new Setting(containerEl)
-			.setName(t("set.convertShared"))
-			.setDesc(t("set.convertSharedDesc"))
-			.addToggle((tg) =>
-				tg.setValue(s.convertSharedNotes).onChange(async (v) => {
-					s.convertSharedNotes = v;
-					await save();
-				})
-			);
-
-		new Setting(containerEl).setName(t("set.mobile")).setDesc(t("set.mobileDesc"));
-
-		// Papers -------------------------------------------------------------
-		new Setting(containerEl).setName(t("set.papers")).setHeading();
-		containerEl.createEl("p", { text: t("paper.hint"), cls: "setting-item-description" });
-
-		const text = (name: string, desc: string | null, get: () => string, set: (v: string) => void, secret = false) => {
-			const st = new Setting(containerEl).setName(name);
-			if (desc) st.setDesc(desc);
-			st.addText((tx) => {
-				if (secret) tx.inputEl.type = "password";
-				tx.setValue(get()).onChange(async (v) => {
-					set(v.trim());
-					await save();
-				});
-			});
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		const groups: SettingDefinitionItem[] = [];
+		let items: SettingGroupItem[] = [];
+		let heading = "";
+		const flush = () => {
+			if (items.length) groups.push({ type: "group", heading: heading || undefined, items });
+			items = [];
 		};
 
-		text(t("set.paperFolder"), null, () => s.paperFolder, (v) => (s.paperFolder = normalizePath(v || "/")));
-		text(t("set.paperFileName"), t("set.paperFileNameDesc"), () => s.paperFileNameTemplate, (v) => (s.paperFileNameTemplate = v || "{{title}}"));
-		text(t("set.defaultPaperTags"), null, () => s.defaultPaperTags, (v) => (s.defaultPaperTags = v));
+		for (const spec of this.specs()) {
+			switch (spec.kind) {
+				case "heading":
+					flush();
+					heading = spec.name;
+					break;
+				case "info":
+					items.push({ name: spec.name, desc: spec.desc, searchable: false });
+					break;
+				case "toggle":
+					items.push({ name: spec.name, desc: spec.desc, control: { type: "toggle", key: spec.key } });
+					break;
+				case "dropdown":
+					items.push({ name: spec.name, desc: spec.desc, control: { type: "dropdown", key: spec.key, options: spec.options } });
+					break;
+				case "text":
+					if (spec.secret) items.push({ name: spec.name, desc: spec.desc, render: (setting) => this.renderSecret(setting, spec) });
+					else items.push({ name: spec.name, desc: spec.desc, control: { type: "text", key: spec.key } });
+					break;
+				case "template":
+					items.push({ name: spec.name, desc: spec.desc, render: (setting) => this.renderTemplate(setting, spec) });
+					break;
+			}
+		}
+		flush();
+		return groups;
+	}
 
-		new Setting(containerEl).setName(t("set.paperSource")).addDropdown((dd) =>
-			dd
-				.addOption("openalex", "OpenAlex")
-				.addOption("crossref", "Crossref")
-				.addOption("arxiv", "arXiv")
-				.addOption("kci", "KCI")
-				.setValue(s.paperSource)
-				.onChange(async (v) => {
-					s.paperSource = v as PaperSource;
-					await save();
-				})
-		);
+	// --- Older Obsidian: imperative fallback -------------------------------------
 
-		new Setting(containerEl).setName(t("set.downloadPdf")).addToggle((tg) =>
-			tg.setValue(s.downloadPdf).onChange(async (v) => {
-				s.downloadPdf = v;
-				await save();
-			})
-		);
-		text(t("set.pdfFolder"), null, () => s.pdfFolder, (v) => (s.pdfFolder = normalizePath(v || "/")));
-		text(t("set.email"), t("set.emailDesc"), () => s.contactEmail, (v) => (s.contactEmail = v));
-		text(t("set.openAlexKey"), t("set.openAlexKeyDesc"), () => s.openAlexKey, (v) => (s.openAlexKey = v), true);
-		text(t("set.kciKey"), t("set.kciKeyDesc"), () => s.kciKey, (v) => (s.kciKey = v), true);
-
-		const ptpl = new Setting(containerEl).setName(t("set.paperTemplate")).setDesc(t("set.paperTemplateDesc"));
-		ptpl.settingEl.addClass("articledrop-template-setting");
-		ptpl.addTextArea((ta) => {
-			ta.inputEl.rows = 14;
-			ta.inputEl.addClass("articledrop-template");
-			ta.setValue(s.paperTemplate).onChange(async (v) => {
-				s.paperTemplate = v;
-				await save();
-			});
-		});
-		ptpl.addExtraButton((b) =>
-			b
-				.setIcon("rotate-ccw")
-				.setTooltip(t("set.resetTemplate"))
-				.onClick(async () => {
-					s.paperTemplate = defaultPaperTemplate();
-					await save();
-					this.display();
-				})
-		);
-
-		// Writing ------------------------------------------------------------
-		new Setting(containerEl).setName(t("set.writing")).setHeading();
-
-		new Setting(containerEl)
-			.setName(t("set.insertMode"))
-			.setDesc(t("set.insertModeDesc"))
-			.addDropdown((dd) =>
-				dd
-					.addOption("footnote", t("set.insertFootnote"))
-					.addOption("citation", t("set.insertCitation"))
-					.addOption("link", t("set.insertLink"))
-					.addOption("citation-link", t("set.insertCitationLink"))
-					.setValue(s.insertMode)
-					.onChange(async (v) => {
-						s.insertMode = v as InsertMode;
-						await save();
-					})
-			);
-
-		new Setting(containerEl).setName(t("set.bibHeading")).addText((tx) =>
-			tx.setValue(s.bibliographyHeading).onChange(async (v) => {
-				s.bibliographyHeading = v.trim() || t("note.bibliography");
-				await save();
-			})
-		);
-
-		// Index --------------------------------------------------------------
-		new Setting(containerEl).setName(t("set.index")).setHeading();
-
-		new Setting(containerEl)
-			.setName(t("set.indexName"))
-			.setDesc(t("set.indexNameDesc"))
-			.addText((tx) =>
-				tx.setValue(s.indexFileName).onChange(async (v) => {
-					s.indexFileName = v.trim() || defaultSettings().indexFileName;
-					await save();
-				})
-			);
+	/** Fallback for Obsidian < 1.13, which has no getSettingDefinitions(). */
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+		for (const spec of this.specs()) {
+			const setting = new Setting(containerEl);
+			switch (spec.kind) {
+				case "heading":
+					setting.setName(spec.name).setHeading();
+					break;
+				case "info":
+					setting.setName(spec.name);
+					if (spec.desc) setting.setDesc(spec.desc);
+					break;
+				case "toggle":
+					setting.setName(spec.name);
+					if (spec.desc) setting.setDesc(spec.desc);
+					setting.addToggle((tg) => tg.setValue(this.getControlValue(spec.key) === true).onChange((v) => void this.setControlValue(spec.key, v)));
+					break;
+				case "dropdown":
+					setting.setName(spec.name);
+					if (spec.desc) setting.setDesc(spec.desc);
+					setting.addDropdown((dd) =>
+						dd
+							.addOptions(spec.options)
+							.setValue(this.textValue(spec.key))
+							.onChange((v) => void this.setControlValue(spec.key, v))
+					);
+					break;
+				case "text":
+					if (spec.secret) {
+						this.renderSecret(setting, spec);
+						break;
+					}
+					setting.setName(spec.name);
+					if (spec.desc) setting.setDesc(spec.desc);
+					setting.addText((tx) => tx.setValue(this.textValue(spec.key)).onChange((v) => void this.setControlValue(spec.key, v)));
+					break;
+				case "template":
+					this.renderTemplate(setting, spec);
+					break;
+			}
+		}
 	}
 }

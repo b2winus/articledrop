@@ -1,10 +1,11 @@
 {
 	"id": "articledrop",
 	"name": "Articledrop",
-	"version": "0.3.0",
+	"version": "0.3.2",
 	"minAppVersion": "1.5.0",
 	"description": "Collect web articles and scholarly papers (OpenAlex, Crossref, arXiv, KCI) as research notes with status, rating, memos and quotes, then cite them as footnotes or a bibliography (Chicago, SBL, APA, MLA, Korean).",
 	"author": "Paul Hong",
-	"authorUrl": "",
-	"isDesktopOnly": false
+	"authorUrl": "https://github.com/b2winus",
+	"isDesktopOnly": false,
+	"fundingUrl": "https://buymeacoffee.com/4h9fg59wsgd"
 }

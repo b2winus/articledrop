@@ -187,7 +187,7 @@ export function extractMeta(doc: Document, url: string): ArticleMeta {
 
 	const rawTitle =
 		meta(doc, "og:title", "twitter:title", "citation_title", "dc.title", "DC.title") ||
-		(typeof ld?.headline === "string" ? (ld.headline as string) : "") ||
+		(typeof ld?.headline === "string" ? ld.headline : "") ||
 		doc.querySelector("title")?.textContent?.trim() ||
 		doc.querySelector("h1")?.textContent?.trim() ||
 		hostLabel(url);
@@ -204,14 +204,14 @@ export function extractMeta(doc: Document, url: string): ArticleMeta {
 
 	const published = toIsoDate(
 		meta(doc, "article:published_time", "og:article:published_time", "citation_publication_date", "citation_date", "datePublished", "pubdate", "publishdate", "date", "dc.date", "DC.date", "parsely-pub-date", "sailthru.date") ||
-			(typeof ld?.datePublished === "string" ? (ld.datePublished as string) : "") ||
+			(typeof ld?.datePublished === "string" ? ld.datePublished : "") ||
 			doc.querySelector("time[datetime]")?.getAttribute("datetime") ||
 			""
 	);
 
 	const description = (
 		meta(doc, "og:description", "description", "twitter:description", "dc.description") ||
-		(typeof ld?.description === "string" ? (ld.description as string) : "")
+		(typeof ld?.description === "string" ? ld.description : "")
 	)
 		.replace(/\s+/g, " ")
 		.trim();
@@ -254,11 +254,9 @@ export function findContentFrame(doc: Document, url: string): string | null {
 const LAZY_ATTRS = ["data-src", "data-lazy-src", "data-original", "data-lazy", "data-url", "data-actualsrc"];
 
 function prepareDocument(doc: Document, url: string) {
-	// Base URL so Readability resolves relative links against the article URL.
+	// Make every link and image absolute up front, so the result does not depend on the
+	// parsed document's base URL (which would be the Obsidian app, not the article).
 	doc.querySelectorAll("base").forEach((b) => b.remove());
-	const base = doc.createElement("base");
-	base.setAttribute("href", url);
-	(doc.head ?? doc.documentElement).prepend(base);
 
 	doc.querySelectorAll("img").forEach((img) => {
 		const src = img.getAttribute("src") ?? "";
@@ -274,6 +272,7 @@ function prepareDocument(doc: Document, url: string) {
 	});
 
 	doc.querySelectorAll("script, style, noscript, iframe[src*='ads'], .ad, .ads, .advertisement").forEach((el) => el.remove());
+	if (doc.body) absolutizeTree(doc.body, url);
 }
 
 function absolutizeTree(root: Element, url: string) {
